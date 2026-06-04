@@ -20,9 +20,17 @@ import type {
   TodaySummaryDTO,
 } from './types';
 
-// 開発時は Vite proxy が /api を Laravel(:8000) へ転送。
-// 本番は Laravel が同一オリジンで SPA を配信するため /api がそのまま使える。
-const BASE = import.meta.env.VITE_API_BASE ?? '/api';
+// API のベースURLを SPA の公開ベース(import.meta.env.BASE_URL)から自動導出する。
+//  - 開発:      base '/pos/'  → '/api'（Vite proxyが :8000 へ転送）
+//  - 本番ルート: base '/pos/'  → '/api'
+//  - サブディレクトリ: base '/toorisugari_tool/pos/' → '/toorisugari_tool/api'
+// これにより、ビルド時の --base 指定だけでサブディレクトリ公開に追従できる。
+function defaultApiBase(): string {
+  const b = import.meta.env.BASE_URL || '/'; // 例 '/pos/' | '/toorisugari_tool/pc/'
+  const prefix = b.replace(/(pos|pc)\/*$/i, '').replace(/\/+$/, ''); // 末尾の pos/pc とスラッシュを除去
+  return `${prefix}/api`;
+}
+const BASE = import.meta.env.VITE_API_BASE ?? defaultApiBase();
 
 let authToken: string | null = null;
 

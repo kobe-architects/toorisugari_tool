@@ -12,11 +12,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class Product extends Model
 {
-    /** 公開URL（無ければ null）。Vite proxy・スマホLAN・本番Apache のいずれでも
-     *  同一オリジンで解決できるよう相対URL "/storage/..." を返す。 */
+    /** 公開URL（無ければ null）。相対URLで返し、サブディレクトリ公開時は
+     *  PUBLIC_BASE（例 "/toorisugari_tool"）を先頭に付与する。 */
     public function imageUrl(): ?string
     {
-        return $this->image_path ? '/storage/'.$this->image_path : null;
+        if (! $this->image_path) {
+            return null;
+        }
+        $base = rtrim((string) config('app.public_base'), '/');
+
+        return $base.'/storage/'.$this->image_path;
     }
 
     protected function casts(): array

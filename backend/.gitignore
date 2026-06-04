@@ -18,8 +18,7 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
-/public/pos
-/public/pc
+# /public/pos, /public/pc はGitデプロイのためコミットする（サーバにNodeが無く再ビルド不可）
 /storage/*.key
 /storage/pail
 /vendor
