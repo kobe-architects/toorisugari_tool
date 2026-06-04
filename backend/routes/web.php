@@ -18,7 +18,11 @@ $serveSpa = function (string $app) {
     $index = public_path("{$app}/index.html");
     abort_unless(is_file($index), 404, "SPA [{$app}] is not built yet.");
 
-    return response(file_get_contents($index), 200, ['Content-Type' => 'text/html']);
+    // index.html はキャッシュさせない（毎回最新のハッシュ付きアセットを参照させる）
+    return response(file_get_contents($index), 200, [
+        'Content-Type' => 'text/html; charset=UTF-8',
+        'Cache-Control' => 'no-cache, no-store, must-revalidate',
+    ]);
 };
 
 // ルートは当面レジへ誘導
