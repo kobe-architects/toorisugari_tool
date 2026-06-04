@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, setAuthToken } from '@shared/api';
+import { api, setAuthToken, setOnUnauthorized } from '@shared/api';
 import type { StaffDTO } from '@shared/types';
 
 const TOKEN_KEY = 'pc_token';
@@ -26,6 +26,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(JSON.parse(saved) as StaffDTO);
     }
     setReady(true);
+  }, []);
+
+  // 401（失効）で自動ログアウト → ログイン画面へ
+  useEffect(() => {
+    setOnUnauthorized(() => {
+      setAuthToken(null);
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      setUser(null);
+    });
+    return () => setOnUnauthorized(null);
   }, []);
 
   const login = async (email: string, password: string) => {

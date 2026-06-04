@@ -34,10 +34,16 @@ function defaultApiBase(): string {
 const BASE = import.meta.env.VITE_API_BASE ?? defaultApiBase();
 
 let authToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
 
 /** Sanctum トークンを設定（null で解除）。以降のリクエストに Bearer 付与。 */
 export function setAuthToken(token: string | null): void {
   authToken = token;
+}
+
+/** 401 を受けたときに呼ばれるハンドラ（自動ログアウト等）。 */
+export function setOnUnauthorized(fn: (() => void) | null): void {
+  onUnauthorized = fn;
 }
 
 export class ApiError extends Error {
@@ -70,6 +76,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const data = text ? JSON.parse(text) : null;
 
   if (!res.ok) {
+    if (res.status === 401) onUnauthorized?.();
     const message = (data && (data.message as string)) || `API ${res.status}`;
     throw new ApiError(res.status, message, data?.errors);
   }

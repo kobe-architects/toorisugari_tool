@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, setAuthToken } from '@shared/api';
+import { api, setAuthToken, setOnUnauthorized } from '@shared/api';
 import type { StaffDTO } from '@shared/types';
 
 const TOKEN_KEY = 'pos_token';
@@ -27,6 +27,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStaff(JSON.parse(saved) as StaffDTO);
     }
     setReady(true);
+  }, []);
+
+  // 401（トークン失効）を受けたら自動でログアウト → Guard がログイン画面へ誘導
+  useEffect(() => {
+    setOnUnauthorized(() => {
+      setAuthToken(null);
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(STAFF_KEY);
+      setStaff(null);
+    });
+    return () => setOnUnauthorized(null);
   }, []);
 
   const login = async (staffId: number, pin: string) => {
