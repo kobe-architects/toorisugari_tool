@@ -1,6 +1,8 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ProductDTO, Temperature } from '@shared/types';
 import { inclusiveTax } from '../lib/money';
+
+const STORAGE_KEY = 'pos_cart';
 
 export type DineType = 'dine_in' | 'takeout';
 
@@ -39,9 +41,26 @@ interface CartState {
 
 const CartCtx = createContext<CartState | null>(null);
 
+function loadStored(): { lines: CartLine[]; dineType: DineType } {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { lines: [], dineType: 'takeout' };
+    const v = JSON.parse(raw);
+    return { lines: Array.isArray(v.lines) ? v.lines : [], dineType: v.dineType === 'dine_in' ? 'dine_in' : 'takeout' };
+  } catch {
+    return { lines: [], dineType: 'takeout' };
+  }
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [lines, setLines] = useState<CartLine[]>([]);
-  const [dineType, setDineType] = useState<DineType>('takeout'); // 既定は持ち帰り
+  const stored = loadStored();
+  const [lines, setLines] = useState<CartLine[]>(stored.lines);
+  const [dineType, setDineType] = useState<DineType>(stored.dineType); // 既定は持ち帰り
+
+  // 画面更新でカートが消えないよう localStorage に保持
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ lines, dineType }));
+  }, [lines, dineType]);
 
   const add = (p: ProductDTO, temperature: Temperature | null = null) =>
     setLines((prev) => {

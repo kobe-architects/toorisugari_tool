@@ -42,10 +42,11 @@ export function Checkout() {
   const quickPresets = presets.filter((a) => a >= total);
 
   const change = received != null ? received - total : null;
-  const canConfirm = received != null && received >= total && cart.count > 0 && !busy;
+  const segmentDone = gender != null && ageBand != null; // 客層は必須
+  const canConfirm = received != null && received >= total && cart.count > 0 && segmentDone && !busy;
 
   const confirm = async () => {
-    if (received == null || received < total || cart.count === 0 || busy) return;
+    if (received == null || received < total || cart.count === 0 || !segmentDone || busy) return;
     setBusy(true);
     setError('');
 
@@ -54,7 +55,7 @@ export function Checkout() {
       payment_method: 'cash',
       received,
       items: cart.lines.map((l) => ({ product_id: l.product.id, qty: l.qty, temperature: l.temperature })),
-      customer: gender || ageBand ? { gender, age_band: ageBand } : null,
+      customer: { gender, age_band: ageBand },
     };
 
     try {
@@ -142,8 +143,11 @@ export function Checkout() {
           </button>
         </div>
 
-        {/* customer segment tap */}
-        <div className="eyebrow" style={{ margin: '20px 2px 10px' }}>客層（任意）</div>
+        {/* customer segment tap（必須） */}
+        <div className="eyebrow" style={{ margin: '20px 2px 10px' }}>
+          客層 <span style={{ color: 'var(--accent)' }}>必須</span>
+          {!segmentDone && <span style={{ color: 'var(--ink-mute)', fontWeight: 700, marginLeft: 8, letterSpacing: 0 }}>性別・年代を選択してください</span>}
+        </div>
         <div className="field" style={{ marginBottom: 12 }}>
           <div className="field-label">性別</div>
           <div className="seg">
