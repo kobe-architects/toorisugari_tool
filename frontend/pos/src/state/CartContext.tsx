@@ -1,0 +1,86 @@
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import type { ProductDTO, Temperature } from '@shared/types';
+import { inclusiveTax } from '../lib/money';
+
+export type DineType = 'dine_in' | 'takeout';
+
+export interface CartLine {
+  lineId: string; // product.id + temperature の複合キー
+  product: ProductDTO;
+  temperature: Temperature | null;
+  qty: number;
+}
+
+/** 商品＋温度から行を一意に識別するキー。 */
+export function lineKey(productId: number, temperature: Temperature | null): string {
+  return `${productId}:${temperature ?? ''}`;
+}
+
+/** 温度サフィックス（ホット/アイス）付きの表示名。 */
+export function lineName(line: CartLine): string {
+  const suffix = line.temperature === 'hot' ? '（ホット）' : line.temperature === 'ice' ? '（アイス）' : '';
+  return line.product.name + suffix;
+}
+
+interface CartState {
+  lines: CartLine[];
+  dineType: DineType;
+  setDineType: (d: DineType) => void;
+  add: (p: ProductDTO, temperature?: Temperature | null) => void;
+  inc: (lineId: string) => void;
+  dec: (lineId: string) => void;
+  remove: (lineId: string) => void;
+  clear: () => void;
+  count: number;
+  subtotal: number;
+  tax: number;
+  total: number;
+}
+
+const CartCtx = createContext<CartState | null>(null);
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [lines, setLines] = useState<CartLine[]>([]);
+  const [dineType, setDineType] = useState<DineType>('takeout'); // 既定は持ち帰り
+
+  const add = (p: ProductDTO, temperature: Temperature | null = null) =>
+    setLines((prev) => {
+      const id = lineKey(p.id, temperature);
+      const hit = prev.find((l) => l.lineId === id);
+      if (hit) return prev.map((l) => (l.lineId === id ? { ...l, qty: l.qty + 1 } : l));
+      return [...prev, { lineId: id, product: p, temperature, qty: 1 }];
+    });
+
+  const inc = (lineId: string) =>
+    setLines((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, qty: l.qty + 1 } : l)));
+
+  const dec = (lineId: string) =>
+    setLines((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, qty: l.qty - 1 } : l)).filter((l) => l.qty > 0));
+
+  const remove = (lineId: string) => setLines((prev) => prev.filter((l) => l.lineId !== lineId));
+  const clear = () => setLines([]);
+
+  const { count, subtotal } = useMemo(() => {
+    let c = 0;
+    let s = 0;
+    for (const l of lines) {
+      c += l.qty;
+      s += l.product.price * l.qty;
+    }
+    return { count: c, subtotal: s };
+  }, [lines]);
+
+  const tax = inclusiveTax(subtotal);
+
+  return (
+    <CartCtx.Provider value={{ lines, dineType, setDineType, add, inc, dec, remove, clear, count, subtotal, tax, total: subtotal }}>
+      {children}
+    </CartCtx.Provider>
+  );
+}
+
+export function useCart(): CartState {
+  const ctx = useContext(CartCtx);
+  if (!ctx) throw new Error('useCart must be used within CartProvider');
+  return ctx;
+}

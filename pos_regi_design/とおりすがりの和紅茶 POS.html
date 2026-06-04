@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>とおりすがりの和紅茶 — モバイルPOS</title>
+<link rel="stylesheet" href="theme.css" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #cdbfa6; }
+  #root { height: 100vh; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<template id="__bundler_thumbnail">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <rect width="100" height="100" fill="#E6D9BF"/>
+    <rect x="38" y="30" width="24" height="40" rx="5" fill="#3C2C1D"/>
+    <circle cx="50" cy="62" r="3" fill="#B0402E"/>
+  </svg>
+</template>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="pos/data.jsx"></script>
+<script type="text/babel" src="pos/brief.jsx"></script>
+<script type="text/babel" src="pos/screens-order.jsx"></script>
+<script type="text/babel" src="pos/screens-flow.jsx"></script>
+<script type="text/babel" src="pos/screens-admin.jsx"></script>
+<script type="text/babel" src="pos/screens-tablet.jsx"></script>
+<script type="text/babel" src="pos/screens-tablet-admin.jsx"></script>
+
+<script type="text/babel">
+const PHONE_W = 458, PHONE_H = 930;
+
+function Phone({ children, dark }) {
+  return (
+    <div style={{ display:'flex', justifyContent:'center', alignItems:'center',
+      width:'100%', height:'100%', padding:28 }}>
+      <IOSDevice dark={dark}>{children}</IOSDevice>
+    </div>
+  );
+}
+
+const phoneStyle = { background:'#ECE5D7' };
+
+function Tablet({ children }) {
+  return (
+    <div style={{ display:'flex', justifyContent:'center', alignItems:'center',
+      width:'100%', height:'100%', padding:30 }}>
+      <TabletDevice>{children}</TabletDevice>
+    </div>
+  );
+}
+const TABLET_W = 1234+60, TABLET_H = 874+60;
+
+function App() {
+  return (
+    <DesignCanvas>
+      <DCSection id="brief" title="コンセプト" subtitle="設計意図とデザインシステム">
+        <DCArtboard id="brief" label="デザインブリーフ" width={920} height={680}>
+          <Brief />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="order" title="メイン注文画面 — 3案" subtitle="配色トーン × レイアウトを見比べ">
+        <DCArtboard id="a" label="案A · 焙煎 / 2列グリッド" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone><OrderA /></Phone>
+        </DCArtboard>
+        <DCArtboard id="b" label="案B · 新茶 / エディトリアル・リスト" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone><OrderB /></Phone>
+        </DCArtboard>
+        <DCArtboard id="c" label="案C · 番茶 / 帳場（濃焙煎ヘッダー）" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone dark><OrderC /></Phone>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="flow" title="ご注文フロー — 焙煎トーンで統一" subtitle="ログイン → 注文 → カート → 会計 → 完了">
+        <DCArtboard id="login" label="① 店員ログイン" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone><LoginScreen /></Phone>
+        </DCArtboard>
+        <DCArtboard id="cart" label="② カート / 注文確認" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone><CartScreen /></Phone>
+        </DCArtboard>
+        <DCArtboard id="checkout" label="③ お会計 / 決済" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone><CheckoutScreen /></Phone>
+        </DCArtboard>
+        <DCArtboard id="done" label="④ 会計完了 / レシート" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone dark><CompleteScreen /></Phone>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="admin" title="管理画面 — オーナー用（スマホ）" subtitle="管理者ログイン → 本日の要約 → 商品管理 → 商品編集">
+        <DCArtboard id="alogin" label="① 管理者ログイン" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone dark><AdminLogin /></Phone>
+        </DCArtboard>
+        <DCArtboard id="ahome" label="② 管理ホーム（本日の要約）" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone><AdminHome /></Phone>
+        </DCArtboard>
+        <DCArtboard id="plist" label="③ 商品管理（売切/表示切替）" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone><ProductList /></Phone>
+        </DCArtboard>
+        <DCArtboard id="pedit" label="④ 商品の追加・編集" width={PHONE_W} height={PHONE_H} style={phoneStyle}>
+          <Phone><ProductEdit /></Phone>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="tablet" title="タブレット横向き（iPad）— レジ一式" subtitle="左：商品 / 右：会計伝票を常時表示の2ペイン">
+        <DCArtboard id="treg" label="注文レジ（2ペイン）" width={TABLET_W} height={TABLET_H} style={phoneStyle}>
+          <Tablet><TabletRegister /></Tablet>
+        </DCArtboard>
+        <DCArtboard id="tchk" label="お会計 / 決済" width={TABLET_W} height={TABLET_H} style={phoneStyle}>
+          <Tablet><TabletCheckout /></Tablet>
+        </DCArtboard>
+        <DCArtboard id="tlogin" label="店員ログイン" width={TABLET_W} height={TABLET_H} style={phoneStyle}>
+          <Tablet><TabletLogin /></Tablet>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="tadmin" title="タブレット横向き — 管理画面" subtitle="左ナビ＋本文。ダッシュボード / 商品管理（マスター詳細）/ 店舗設定">
+        <DCArtboard id="tahome" label="ダッシュボード" width={TABLET_W} height={TABLET_H} style={phoneStyle}>
+          <Tablet><TabletAdminHome /></Tablet>
+        </DCArtboard>
+        <DCArtboard id="tprod" label="商品管理（マスター詳細）" width={TABLET_W} height={TABLET_H} style={phoneStyle}>
+          <Tablet><TabletProductMgr /></Tablet>
+        </DCArtboard>
+        <DCArtboard id="tset" label="営業・店舗設定" width={TABLET_W} height={TABLET_H} style={phoneStyle}>
+          <Tablet><TabletAdminSettings /></Tablet>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

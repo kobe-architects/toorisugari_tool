@@ -1,0 +1,16 @@
+{
+  "name": "toorisugari-frontend",
+  "private": true,
+  "workspaces": [
+    "pos",
+    "pc"
+  ],
+  "scripts": {
+    "dev:pos": "npm -w pos run dev",
+    "dev:pc": "npm -w pc run dev",
+    "build": "npm -w pos run build && npm -w pc run build",
+    "build:pos": "npm -w pos run build",
+    "build:pc": "npm -w pc run build",
+    "typecheck": "npm -w pos run typecheck && npm -w pc run typecheck"
+  }
+}

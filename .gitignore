@@ -1,0 +1,11 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 念のための保険（各サブディレクトリの .gitignore が主）
+**/node_modules/
+**/dist/
+backend/.env
+backend/vendor/
