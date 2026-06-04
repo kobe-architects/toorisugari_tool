@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@shared/api';
-import type { CategoryDTO, ProductDTO, Temperature } from '@shared/types';
+import type { CategoryDTO, ProductDTO, ProductOption, Temperature } from '@shared/types';
+
+/** 同名のオプショングループを1つにまとめ、選択肢を結合する。 */
+function mergeOptionGroups(opts: ProductOption[]): ProductOption[] {
+  const map = new Map<string, ProductOption>();
+  for (const g of opts) {
+    const ex = map.get(g.name);
+    if (ex) ex.choices = [...new Set([...ex.choices, ...g.choices])];
+    else map.set(g.name, { name: g.name, choices: [...g.choices] });
+  }
+  return [...map.values()];
+}
 import { ProductIcon } from '@shared/icons';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
@@ -41,15 +52,15 @@ export function Order() {
     }
   };
 
+  // 同名グループはまとめて表示・選択
+  const groups = pending ? mergeOptionGroups(pending.options) : [];
+
   // 必要な選択がすべて揃ったか
-  const ready =
-    !!pending &&
-    (!pending.has_temperature || pTemp != null) &&
-    pending.options.every((g) => pOpts[g.name]);
+  const ready = !!pending && (!pending.has_temperature || pTemp != null) && groups.every((g) => pOpts[g.name]);
 
   const confirmAdd = () => {
     if (!pending || !ready) return;
-    const selections = pending.options.map((g) => ({ name: g.name, value: pOpts[g.name] }));
+    const selections = groups.map((g) => ({ name: g.name, value: pOpts[g.name] }));
     cart.add(pending, pTemp, selections);
     setPending(null);
   };
@@ -193,11 +204,11 @@ export function Order() {
               </div>
             )}
 
-            {/* 任意オプション群（産地など） */}
-            {pending.options.map((g) => (
+            {/* 任意オプション群（産地など）。選択肢は2列グリッド表示 */}
+            {groups.map((g) => (
               <div key={g.name} style={{ marginBottom: 16 }}>
                 <div className="eyebrow" style={{ marginBottom: 8 }}>{g.name}</div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {g.choices.map((c) => {
                     const on = pOpts[g.name] === c;
                     return (
@@ -205,7 +216,7 @@ export function Order() {
                         key={c}
                         className={'btn' + (on ? ' btn-primary' : ' btn-ghost')}
                         onClick={() => setPOpts((p) => ({ ...p, [g.name]: c }))}
-                        style={{ flex: '1 1 40%', padding: '16px 0', fontSize: 16, borderRadius: 12, cursor: 'pointer' }}
+                        style={{ padding: '16px 0', fontSize: 16, borderRadius: 12, cursor: 'pointer' }}
                       >
                         {c}
                       </button>
