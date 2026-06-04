@@ -50,6 +50,9 @@ Route::get('/products', function () {
         ]);
 });
 
+// レジ設定（プリセット金額など・非機密のため公開）
+Route::get('/settings', [SettingsController::class, 'index']);
+
 // ---- 認証 ----
 Route::get('/staff', [AuthController::class, 'staff']);
 Route::post('/auth/pin', [AuthController::class, 'pinLogin']);    // レジ（スタッフPIN）
@@ -61,9 +64,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // 会計確定（DB保存）
     Route::post('/orders', [OrderController::class, 'store']);
-
-    // レジ設定の取得（スタッフ閲覧可）
-    Route::get('/settings', [SettingsController::class, 'index']);
 
     // ---- 管理（オーナー専用） ----
     Route::middleware('owner')->prefix('admin')->group(function () {
