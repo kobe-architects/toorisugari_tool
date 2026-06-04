@@ -17,7 +17,7 @@ function Guard({ children }: { children: ReactElement }) {
 
 export function App() {
   return (
-    <BrowserRouter basename="/pc">
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/+$/, '')}>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />

@@ -30,7 +30,7 @@ function OwnerGuard({ children }: { children: ReactElement }) {
 
 export function App() {
   return (
-    <BrowserRouter basename="/pos">
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/+$/, '')}>
       <AuthProvider>
         <CartProvider>
           <Routes>
