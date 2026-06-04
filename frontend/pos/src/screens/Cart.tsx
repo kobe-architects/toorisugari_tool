@@ -1,7 +1,27 @@
 import { useNavigate } from 'react-router-dom';
-import { useCart, lineName } from '../state/CartContext';
+import { useCart } from '../state/CartContext';
+import type { Temperature } from '@shared/types';
 import { Yen, SafeTop } from '../components/common';
 import { yen } from '../lib/money';
+
+/** ホット=赤 / アイス=青 のバッジ（注文時の選択肢と同色）。 */
+function TempBadge({ t }: { t: Temperature }) {
+  const hot = t === 'hot';
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        padding: '2px 8px',
+        borderRadius: 999,
+        background: hot ? 'var(--accent)' : '#DCEBF5',
+        color: hot ? '#FBEFD9' : '#2C4A5E',
+      }}
+    >
+      {hot ? 'ホット' : 'アイス'}
+    </span>
+  );
+}
 
 export function Cart() {
   const nav = useNavigate();
@@ -41,7 +61,10 @@ export function Cart() {
                 }}
               >
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14.5 }}>{lineName(l)}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14.5, display: 'flex', alignItems: 'center', gap: 7 }}>
+                    {l.product.name}
+                    {l.temperature && <TempBadge t={l.temperature} />}
+                  </div>
                   <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', marginTop: 2 }}>{l.product.sub}</div>
                 </div>
                 <div className="stepper">
