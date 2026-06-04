@@ -189,14 +189,14 @@ export function Order() {
                   <button
                     className="btn"
                     onClick={() => setPTemp('hot')}
-                    style={{ flex: 1, padding: '20px 0', background: 'var(--accent)', color: '#FBEFD9', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'hot' || pTemp == null ? 1 : 0.45, outline: pTemp === 'hot' ? '3px solid rgba(176,64,46,0.35)' : 'none' }}
+                    style={{ flex: 1, padding: '20px 0', background: 'var(--accent)', color: '#FBEFD9', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'hot' ? 1 : 0.4, outline: pTemp === 'hot' ? '3px solid rgba(176,64,46,0.35)' : 'none' }}
                   >
                     ホット
                   </button>
                   <button
                     className="btn"
                     onClick={() => setPTemp('ice')}
-                    style={{ flex: 1, padding: '20px 0', background: '#DCEBF5', color: '#2C4A5E', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'ice' || pTemp == null ? 1 : 0.45, outline: pTemp === 'ice' ? '3px solid rgba(44,74,94,0.3)' : 'none' }}
+                    style={{ flex: 1, padding: '20px 0', background: '#DCEBF5', color: '#2C4A5E', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'ice' ? 1 : 0.4, outline: pTemp === 'ice' ? '3px solid rgba(44,74,94,0.3)' : 'none' }}
                   >
                     アイス
                   </button>
