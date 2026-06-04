@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\SettingsController;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -61,6 +62,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // 会計確定（DB保存）
     Route::post('/orders', [OrderController::class, 'store']);
 
+    // レジ設定の取得（スタッフ閲覧可）
+    Route::get('/settings', [SettingsController::class, 'index']);
+
     // ---- 管理（オーナー専用） ----
     Route::middleware('owner')->prefix('admin')->group(function () {
         Route::get('/summary/today', [AdminController::class, 'summaryToday']);
@@ -71,6 +75,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/products/{product}', [AdminController::class, 'destroyProduct']);
         Route::post('/products/{product}/image', [AdminController::class, 'uploadImage']);
         Route::delete('/products/{product}/image', [AdminController::class, 'deleteImage']);
+
+        // レジ設定の更新
+        Route::patch('/settings', [SettingsController::class, 'update']);
     });
 
     // ---- PC分析（オーナー専用） ----

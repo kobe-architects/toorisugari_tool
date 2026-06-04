@@ -42,6 +42,10 @@ export interface PinLoginResponse {
 }
 
 // ---- 会計確定 ----
+export interface SettingsDTO {
+  cash_presets: number[]; // お預かりクイック金額
+}
+
 export type Gender = 'female' | 'male' | 'other';
 export type AgeBand = '10s' | '20s' | '30s' | '40s' | '50s' | '60plus';
 export type DineType = 'dine_in' | 'takeout';

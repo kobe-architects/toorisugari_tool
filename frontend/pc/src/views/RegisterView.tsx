@@ -80,6 +80,8 @@ export function RegisterView() {
         ))}
       </Panel>
 
+      <CashPresetsPanel />
+
       {editing && (
         <ProductEditorModal
           product={editing === 'new' ? null : editing}
@@ -89,6 +91,65 @@ export function RegisterView() {
         />
       )}
     </>
+  );
+}
+
+/** お預かりクイック金額（ちょうど以外）の設定。 */
+function CashPresetsPanel() {
+  const [presets, setPresets] = useState<number[]>([]);
+  const [amount, setAmount] = useState('');
+  const [saved, setSaved] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.settings().then((s) => setPresets(s.cash_presets)).catch(() => {});
+  }, []);
+
+  const add = () => {
+    const n = Number(amount);
+    if (!n || presets.includes(n)) return;
+    setPresets((p) => [...p, n].sort((a, b) => a - b));
+    setAmount('');
+    setSaved('');
+  };
+  const remove = (n: number) => {
+    setPresets((p) => p.filter((x) => x !== n));
+    setSaved('');
+  };
+  const save = async () => {
+    setBusy(true);
+    try {
+      const r = await api.admin.updateSettings({ cash_presets: presets });
+      setPresets(r.cash_presets);
+      setSaved('保存しました');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Panel
+      title="お預かりプリセット金額"
+      sub="レジの会計画面に表示するクイック金額（「ちょうど」「手入力」は常設）"
+      right={<button className="btn btn-accent" style={{ padding: '9px 18px', fontSize: 13.5, cursor: 'pointer', opacity: busy ? 0.5 : 1 }} onClick={save} disabled={busy}>保存</button>}
+    >
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', maxWidth: 720 }}>
+        {presets.map((n) => (
+          <span key={n} className="chip" style={{ fontSize: 14, padding: '8px 12px', fontFamily: 'var(--mincho)', fontWeight: 700 }}>
+            ¥{yen(n)}
+            <button onClick={() => remove(n)} title="削除" style={{ marginLeft: 6, background: 'transparent', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+          </span>
+        ))}
+        {presets.length === 0 && <span style={{ fontSize: 12.5, color: 'var(--ink-mute)' }}>プリセットなし</span>}
+        <span style={{ width: 12 }} />
+        <div style={{ position: 'relative', width: 130 }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontFamily: 'var(--mincho)', fontWeight: 700, color: 'var(--ink-soft)' }}>¥</span>
+          <input className="input mincho" inputMode="numeric" placeholder="金額" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))} style={{ paddingLeft: 26, fontSize: 16 }} />
+        </div>
+        <button className="btn btn-ghost" onClick={add} disabled={amount === ''} style={{ padding: '10px 16px', fontSize: 13.5, cursor: 'pointer', opacity: amount === '' ? 0.5 : 1 }}>追加</button>
+        {saved && <span style={{ fontSize: 12.5, color: 'var(--leaf)', fontWeight: 700, marginLeft: 8 }}>{saved}</span>}
+      </div>
+    </Panel>
   );
 }
 

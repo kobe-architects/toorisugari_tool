@@ -16,6 +16,7 @@ import type {
   ProductInput,
   ProfitDTO,
   SalesAnalyticsDTO,
+  SettingsDTO,
   StaffDTO,
   TodaySummaryDTO,
 } from './types';
@@ -85,6 +86,7 @@ export const api = {
     request<PinLoginResponse>('POST', '/auth/login', { email, password }),
   logout: () => request<void>('POST', '/auth/logout'),
   createOrder: (payload: OrderPayload) => request<OrderResultDTO>('POST', '/orders', payload),
+  settings: () => request<SettingsDTO>('GET', '/settings'),
 
   // ---- 管理（オーナー専用） ----
   admin: {
@@ -108,6 +110,7 @@ export const api = {
       return data as AdminProductDTO;
     },
     deleteProductImage: (id: number) => request<AdminProductDTO>('DELETE', `/admin/products/${id}/image`),
+    updateSettings: (input: { cash_presets: number[] }) => request<SettingsDTO>('PATCH', '/admin/settings', input),
   },
 
   // ---- PC分析（オーナー専用） ----

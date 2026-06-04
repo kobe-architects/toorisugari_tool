@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '@shared/api';
 import type { Gender, AgeBand, OrderPayload } from '@shared/types';
 import { useCart } from '../state/CartContext';
 import { SafeTop } from '../components/common';
+import { NumericKeypad } from '../components/NumericKeypad';
 import { yen } from '../lib/money';
 
 const GENDERS: { v: Gender; label: string }[] = [
@@ -21,16 +22,6 @@ const AGE_BANDS: { v: AgeBand; label: string }[] = [
   { v: '60plus', label: '60代〜' },
 ];
 
-/** お預かりのクイック金額（合計以上の代表値）。 */
-function quickAmounts(total: number): number[] {
-  const set = new Set<number>([total]);
-  set.add(Math.ceil(total / 1000) * 1000);
-  [1000, 5000, 10000].forEach((d) => {
-    if (d >= total) set.add(d);
-  });
-  return [...set].sort((a, b) => a - b).slice(0, 5);
-}
-
 export function Checkout() {
   const nav = useNavigate();
   const cart = useCart();
@@ -39,8 +30,16 @@ export function Checkout() {
   const [gender, setGender] = useState<Gender | null>(null);
   const [ageBand, setAgeBand] = useState<AgeBand | null>(null);
   const [received, setReceived] = useState<number | null>(null);
+  const [presets, setPresets] = useState<number[]>([]);
+  const [keypad, setKeypad] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // 管理側で設定したお預かりプリセット金額を取得（合計以上のみ表示）
+  useEffect(() => {
+    api.settings().then((s) => setPresets(s.cash_presets)).catch(() => setPresets([]));
+  }, []);
+  const quickPresets = presets.filter((a) => a >= total);
 
   const change = received != null ? received - total : null;
   const canConfirm = received != null && received >= total && cart.count > 0 && !busy;
@@ -114,16 +113,33 @@ export function Checkout() {
         {/* cash received */}
         <div className="eyebrow" style={{ margin: '18px 2px 10px' }}>お預かり（現金）</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
-          {quickAmounts(total).map((a) => (
+          {/* ちょうど（常設） */}
+          <button
+            className={'btn' + (received === total ? ' btn-primary' : ' btn-ghost')}
+            style={{ padding: '13px 6px', fontFamily: 'var(--mincho)', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
+            onClick={() => setReceived(total)}
+          >
+            ちょうど
+          </button>
+          {/* 管理側プリセット（合計以上） */}
+          {quickPresets.map((a) => (
             <button
               key={a}
               className={'btn' + (received === a ? ' btn-primary' : ' btn-ghost')}
               style={{ padding: '13px 6px', fontFamily: 'var(--mincho)', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
               onClick={() => setReceived(a)}
             >
-              {a === total ? 'ちょうど' : `¥${yen(a)}`}
+              ¥{yen(a)}
             </button>
           ))}
+          {/* 手入力（独自テンキー） */}
+          <button
+            className="btn btn-ghost"
+            style={{ padding: '13px 6px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+            onClick={() => setKeypad(true)}
+          >
+            手入力
+          </button>
         </div>
 
         {/* customer segment tap */}
@@ -164,6 +180,19 @@ export function Checkout() {
           {busy ? '会計を保存中…' : '現金で会計を確定する'}
         </button>
       </div>
+
+      {keypad && (
+        <NumericKeypad
+          title="お預かり金額（手入力）"
+          initial={received ?? 0}
+          min={total}
+          onConfirm={(v) => {
+            setReceived(v);
+            setKeypad(false);
+          }}
+          onCancel={() => setKeypad(false)}
+        />
+      )}
     </div>
   );
 }
