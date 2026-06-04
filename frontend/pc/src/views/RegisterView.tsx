@@ -165,6 +165,7 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
   const [isSoldOut, setIsSoldOut] = useState(product?.is_sold_out ?? false);
   const [isVisible, setIsVisible] = useState(product?.is_visible ?? true);
   const [hasTemperature, setHasTemperature] = useState(product?.has_temperature ?? false);
+  const [optGroups, setOptGroups] = useState<{ name: string; choicesText: string }[]>((product?.options ?? []).map((g) => ({ name: g.name, choicesText: g.choices.join('、') })));
   const [image, setImage] = useState<string | null>(product?.image ?? null);
   const [busy, setBusy] = useState(false);
   const [imgBusy, setImgBusy] = useState(false);
@@ -181,6 +182,9 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
     const input: ProductInput = {
       category_id: categoryId, name: name.trim(), sub: sub.trim() || null, price: Number(price),
       tax_rate: Number(taxRate) || 10, icon, stamp, is_sold_out: isSoldOut, is_visible: isVisible, has_temperature: hasTemperature,
+      options: optGroups
+        .map((g) => ({ name: g.name.trim(), choices: g.choicesText.split(/[、,\s]+/).map((s) => s.trim()).filter(Boolean) }))
+        .filter((g) => g.name && g.choices.length > 0),
     };
     try {
       const result = current ? await api.admin.updateProduct(current.id, input) : await api.admin.createProduct(input);
@@ -304,6 +308,18 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
               <div key={s.label} className={'opt accent' + (stamp === s.v ? ' on' : '')} style={{ fontFamily: s.v ? 'var(--brush)' : 'var(--gothic)', fontSize: s.v ? 17 : 13.5 }} onClick={() => setStamp(s.v)}>{s.label}</div>
             ))}
           </div>
+        </div>
+
+        <div className="field">
+          <div className="field-label">選択オプション<span style={{ fontSize: 10.5, color: 'var(--ink-mute)', marginLeft: 6 }}>注文時に選択（産地など）</span></div>
+          {optGroups.map((g, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input className="input" placeholder="名称(例:産地)" value={g.name} onChange={(e) => setOptGroups((a) => a.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} style={{ width: 140 }} />
+              <input className="input" placeholder="選択肢(例:宮崎、五ヶ瀬)" value={g.choicesText} onChange={(e) => setOptGroups((a) => a.map((x, j) => (j === i ? { ...x, choicesText: e.target.value } : x)))} style={{ flex: 1 }} />
+              <button className="btn" onClick={() => setOptGroups((a) => a.filter((_, j) => j !== i))} style={{ padding: '0 14px', background: 'transparent', color: 'var(--accent)', border: '1.5px solid var(--accent)', cursor: 'pointer' }}>✕</button>
+            </div>
+          ))}
+          <button className="btn btn-ghost" onClick={() => setOptGroups((a) => [...a, { name: '', choicesText: '' }])} style={{ width: '100%', padding: 10, borderStyle: 'dashed', fontSize: 13, cursor: 'pointer' }}>＋ オプションを追加</button>
         </div>
 
         <div style={{ background: 'var(--card)', border: '1.5px solid var(--line)', borderRadius: 13, padding: '4px 16px', marginTop: 4 }}>

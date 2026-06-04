@@ -2,6 +2,18 @@
 
 export type Temperature = 'hot' | 'ice';
 
+/** 商品の任意選択肢グループ（例: 産地＝宮崎/五ヶ瀬） */
+export interface ProductOption {
+  name: string;
+  choices: string[];
+}
+
+/** 会計時の選択結果（例: 産地＝宮崎） */
+export interface OptionSelection {
+  name: string;
+  value: string;
+}
+
 export interface ProductDTO {
   id: number;
   name: string;
@@ -12,6 +24,7 @@ export interface ProductDTO {
   stamp: string | null;
   sold: boolean;
   has_temperature: boolean;
+  options: ProductOption[];
 }
 
 export interface CategoryDTO {
@@ -54,7 +67,7 @@ export interface OrderPayload {
   dine_type: DineType;
   payment_method?: 'cash';
   received: number;
-  items: { product_id: number; qty: number; temperature?: Temperature | null }[];
+  items: { product_id: number; qty: number; temperature?: Temperature | null; options?: OptionSelection[] }[];
   customer?: { gender: Gender | null; age_band: AgeBand | null } | null;
 }
 
@@ -101,6 +114,7 @@ export interface AdminProductDTO {
   is_sold_out: boolean;
   is_visible: boolean;
   has_temperature: boolean;
+  options: ProductOption[];
   sort_order: number;
 }
 
@@ -115,6 +129,7 @@ export interface ProductInput {
   is_sold_out?: boolean;
   is_visible?: boolean;
   has_temperature?: boolean;
+  options?: ProductOption[];
 }
 
 export interface TodaySummaryDTO {

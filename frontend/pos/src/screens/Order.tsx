@@ -15,7 +15,9 @@ export function Order() {
   const [cats, setCats] = useState<CategoryDTO[]>([]);
   const [active, setActive] = useState('');
   const [error, setError] = useState('');
-  const [pending, setPending] = useState<ProductDTO | null>(null); // 温度選択中の商品
+  const [pending, setPending] = useState<ProductDTO | null>(null); // 選択中の商品
+  const [pTemp, setPTemp] = useState<Temperature | null>(null);
+  const [pOpts, setPOpts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     api
@@ -30,12 +32,25 @@ export function Order() {
   const current = cats.find((c) => c.id === active);
 
   const onAdd = (m: ProductDTO) => {
-    if (m.has_temperature) setPending(m);
-    else cart.add(m, null);
+    if (m.has_temperature || m.options.length > 0) {
+      setPending(m);
+      setPTemp(null);
+      setPOpts({});
+    } else {
+      cart.add(m, null, []);
+    }
   };
 
-  const pickTemp = (t: Temperature) => {
-    if (pending) cart.add(pending, t);
+  // 必要な選択がすべて揃ったか
+  const ready =
+    !!pending &&
+    (!pending.has_temperature || pTemp != null) &&
+    pending.options.every((g) => pOpts[g.name]);
+
+  const confirmAdd = () => {
+    if (!pending || !ready) return;
+    const selections = pending.options.map((g) => ({ name: g.name, value: pOpts[g.name] }));
+    cart.add(pending, pTemp, selections);
     setPending(null);
   };
 
@@ -144,26 +159,71 @@ export function Order() {
         </button>
       </div>
 
-      {/* ホット/アイス 選択シート */}
+      {/* 選択シート（ホット/アイス＋任意オプション） */}
       {pending && (
         <div
           onClick={() => setPending(null)}
           style={{ position: 'absolute', inset: 0, zIndex: 20, background: 'rgba(40,28,16,0.45)', display: 'flex', alignItems: 'flex-end' }}
         >
-          <div onClick={(e) => e.stopPropagation()} className="theme-roast" style={{ width: '100%', background: 'var(--card-2)', borderRadius: '18px 18px 0 0', padding: '20px 20px 24px', boxShadow: '0 -8px 24px rgba(40,28,16,0.25)' }}>
-            <div style={{ textAlign: 'center', marginBottom: 4 }}>
-              <span className="section-jp" style={{ fontSize: 17 }}>{pending.name}</span>
+          <div onClick={(e) => e.stopPropagation()} className="theme-roast" style={{ width: '100%', maxHeight: '85%', overflowY: 'auto', background: 'var(--card-2)', borderRadius: '18px 18px 0 0', padding: '20px 20px 24px', boxShadow: '0 -8px 24px rgba(40,28,16,0.25)' }}>
+            <div style={{ textAlign: 'center', marginBottom: 14 }}>
+              <span className="section-jp" style={{ fontSize: 18 }}>{pending.name}</span>
             </div>
-            <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--ink-mute)', marginBottom: 16 }}>ホット / アイスをお選びください</div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button className="btn" onClick={() => pickTemp('hot')} style={{ flex: 1, padding: '24px 0', background: 'var(--accent)', color: '#FBEFD9', fontSize: 18, borderRadius: 14, cursor: 'pointer' }}>
-                ホット
-              </button>
-              <button className="btn" onClick={() => pickTemp('ice')} style={{ flex: 1, padding: '24px 0', background: '#DCEBF5', color: '#2C4A5E', fontSize: 18, borderRadius: 14, cursor: 'pointer' }}>
-                アイス
-              </button>
-            </div>
-            <button className="btn btn-ghost" onClick={() => setPending(null)} style={{ width: '100%', marginTop: 12, padding: 12, fontSize: 14, cursor: 'pointer' }}>
+
+            {/* 温度 */}
+            {pending.has_temperature && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>ホット / アイス</div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button
+                    className="btn"
+                    onClick={() => setPTemp('hot')}
+                    style={{ flex: 1, padding: '20px 0', background: 'var(--accent)', color: '#FBEFD9', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'hot' || pTemp == null ? 1 : 0.45, outline: pTemp === 'hot' ? '3px solid rgba(176,64,46,0.35)' : 'none' }}
+                  >
+                    ホット
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={() => setPTemp('ice')}
+                    style={{ flex: 1, padding: '20px 0', background: '#DCEBF5', color: '#2C4A5E', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'ice' || pTemp == null ? 1 : 0.45, outline: pTemp === 'ice' ? '3px solid rgba(44,74,94,0.3)' : 'none' }}
+                  >
+                    アイス
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 任意オプション群（産地など） */}
+            {pending.options.map((g) => (
+              <div key={g.name} style={{ marginBottom: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>{g.name}</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {g.choices.map((c) => {
+                    const on = pOpts[g.name] === c;
+                    return (
+                      <button
+                        key={c}
+                        className={'btn' + (on ? ' btn-primary' : ' btn-ghost')}
+                        onClick={() => setPOpts((p) => ({ ...p, [g.name]: c }))}
+                        style={{ flex: '1 1 40%', padding: '16px 0', fontSize: 16, borderRadius: 12, cursor: 'pointer' }}
+                      >
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            <button
+              className="btn btn-accent"
+              onClick={confirmAdd}
+              disabled={!ready}
+              style={{ width: '100%', marginTop: 6, padding: 15, fontSize: 16, cursor: ready ? 'pointer' : 'default', opacity: ready ? 1 : 0.5 }}
+            >
+              カートに追加
+            </button>
+            <button className="btn btn-ghost" onClick={() => setPending(null)} style={{ width: '100%', marginTop: 10, padding: 12, fontSize: 14, cursor: 'pointer' }}>
               キャンセル
             </button>
           </div>

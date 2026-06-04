@@ -61,9 +61,14 @@ export function Cart() {
                 }}
               >
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14.5, display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14.5, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                     {l.product.name}
                     {l.temperature && <TempBadge t={l.temperature} />}
+                    {l.selections.map((s) => (
+                      <span key={s.name} style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'var(--paper-2)', border: '1px solid var(--line-2)', color: 'var(--ink-soft)' }}>
+                        {s.value}
+                      </span>
+                    ))}
                   </div>
                   <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', marginTop: 2 }}>{l.product.sub}</div>
                 </div>

@@ -126,6 +126,10 @@ class AdminController extends Controller
             'is_sold_out' => ['boolean'],
             'is_visible' => ['boolean'],
             'has_temperature' => ['boolean'],
+            'options' => ['nullable', 'array'],
+            'options.*.name' => ['required_with:options', 'string', 'max:40'],
+            'options.*.choices' => ['required_with:options', 'array', 'min:1'],
+            'options.*.choices.*' => ['string', 'max:40'],
             'sort_order' => ['nullable', 'integer'],
         ]);
     }
@@ -150,6 +154,7 @@ class AdminController extends Controller
             'is_sold_out' => $p->is_sold_out,
             'is_visible' => $p->is_visible,
             'has_temperature' => $p->has_temperature,
+            'options' => $p->options ?? [],
             'sort_order' => $p->sort_order,
         ];
     }

@@ -30,6 +30,7 @@ export function ProductEdit() {
   const [isSoldOut, setIsSoldOut] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasTemperature, setHasTemperature] = useState(false);
+  const [optGroups, setOptGroups] = useState<{ name: string; choicesText: string }[]>([]);
   const [image, setImage] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -54,6 +55,7 @@ export function ProductEdit() {
         setIsSoldOut(p.is_sold_out);
         setIsVisible(p.is_visible);
         setHasTemperature(p.has_temperature);
+        setOptGroups((p.options ?? []).map((g) => ({ name: g.name, choicesText: g.choices.join('、') })));
         setImage(p.image);
       });
     }
@@ -76,6 +78,9 @@ export function ProductEdit() {
       is_sold_out: isSoldOut,
       is_visible: isVisible,
       has_temperature: hasTemperature,
+      options: optGroups
+        .map((g) => ({ name: g.name.trim(), choices: g.choicesText.split(/[、,\s]+/).map((s) => s.trim()).filter(Boolean) }))
+        .filter((g) => g.name && g.choices.length > 0),
     };
     try {
       if (isNew) await api.admin.createProduct(input);
@@ -227,6 +232,19 @@ export function ProductEdit() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* 選択オプション（産地など） */}
+        <div className="field">
+          <div className="field-label">選択オプション<span style={{ fontSize: 10.5, color: 'var(--ink-mute)', marginLeft: 6 }}>注文時に選択（産地など）</span></div>
+          {optGroups.map((g, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input className="input" placeholder="名称(例:産地)" value={g.name} onChange={(e) => setOptGroups((a) => a.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} style={{ width: 110 }} />
+              <input className="input" placeholder="選択肢(例:宮崎、五ヶ瀬)" value={g.choicesText} onChange={(e) => setOptGroups((a) => a.map((x, j) => (j === i ? { ...x, choicesText: e.target.value } : x)))} style={{ flex: 1 }} />
+              <button className="btn" onClick={() => setOptGroups((a) => a.filter((_, j) => j !== i))} style={{ padding: '0 12px', background: 'transparent', color: 'var(--accent)', border: '1.5px solid var(--accent)', cursor: 'pointer' }}>✕</button>
+            </div>
+          ))}
+          <button className="btn btn-ghost" onClick={() => setOptGroups((a) => [...a, { name: '', choicesText: '' }])} style={{ width: '100%', padding: 10, borderStyle: 'dashed', fontSize: 13, cursor: 'pointer' }}>＋ オプションを追加</button>
         </div>
 
         {/* toggles */}

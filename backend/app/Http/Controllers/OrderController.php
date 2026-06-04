@@ -26,6 +26,9 @@ class OrderController extends Controller
             'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.temperature' => ['nullable', 'in:hot,ice'],
+            'items.*.options' => ['nullable', 'array'],
+            'items.*.options.*.name' => ['required_with:items.*.options', 'string', 'max:40'],
+            'items.*.options.*.value' => ['required_with:items.*.options', 'string', 'max:40'],
             'customer' => ['nullable', 'array'],
             'customer.gender' => ['nullable', 'in:female,male,other'],
             'customer.age_band' => ['nullable', 'in:10s,20s,30s,40s,50s,60plus'],
@@ -42,21 +45,31 @@ class OrderController extends Controller
             $p = $products[$item['product_id']];
             $qty = $item['qty'];
             $temp = $item['temperature'] ?? null;
+            $opts = $item['options'] ?? [];
             $lineTotal = $p->price * $qty;
             $rate = (float) $p->tax_rate / 100;
             $lineTax = $lineTotal - (int) round($lineTotal / (1 + $rate));
 
-            $suffix = match ($temp) {
-                'hot' => '（ホット）',
-                'ice' => '（アイス）',
-                default => '',
-            };
+            // 選択（産地など）＋温度を名前サフィックスに（例: みなみさやか（宮崎・ホット））
+            $parts = [];
+            foreach ($opts as $o) {
+                if (! empty($o['value'])) {
+                    $parts[] = $o['value'];
+                }
+            }
+            if ($temp === 'hot') {
+                $parts[] = 'ホット';
+            } elseif ($temp === 'ice') {
+                $parts[] = 'アイス';
+            }
+            $suffix = $parts ? '（'.implode('・', $parts).'）' : '';
 
             $subtotal += $lineTotal;
             $tax += $lineTax;
             $lines[] = [
                 'product_id' => $p->id,
                 'temperature' => $temp,
+                'options' => $opts ?: null,
                 'name' => $p->name.$suffix,
                 'price' => $p->price,
                 'qty' => $qty,

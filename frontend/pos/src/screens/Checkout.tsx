@@ -54,7 +54,7 @@ export function Checkout() {
       dine_type: cart.dineType,
       payment_method: 'cash',
       received,
-      items: cart.lines.map((l) => ({ product_id: l.product.id, qty: l.qty, temperature: l.temperature })),
+      items: cart.lines.map((l) => ({ product_id: l.product.id, qty: l.qty, temperature: l.temperature, options: l.selections })),
       customer: { gender, age_band: ageBand },
     };
 
