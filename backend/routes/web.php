@@ -13,20 +13,19 @@ use Illuminate\Support\Facades\Route;
 | それ以外の深いパスは各 index.html へフォールバック（クライアントルーティング）。
 */
 
-// ルートは当面レジへ誘導
-Route::get('/', fn () => redirect('/pos/'));
-
-/** ビルド済みSPAの index.html を返す */
-function serveSpa(string $app): \Symfony\Component\HttpFoundation\Response
-{
+// ビルド済みSPAの index.html を返す（グローバル関数にすると二重読込で再宣言エラーになるためクロージャ）
+$serveSpa = function (string $app) {
     $index = public_path("{$app}/index.html");
-    abort_unless(is_file($index), 404, "SPA [{$app}] is not built yet. Run: npm run build:{$app}");
+    abort_unless(is_file($index), 404, "SPA [{$app}] is not built yet.");
 
     return response(file_get_contents($index), 200, ['Content-Type' => 'text/html']);
-}
+};
 
-Route::get('/pos', fn () => serveSpa('pos'));
-Route::get('/pos/{any}', fn () => serveSpa('pos'))->where('any', '.*');
+// ルートは当面レジへ誘導
+Route::get('/', fn () => redirect('pos/'));
 
-Route::get('/pc', fn () => serveSpa('pc'));
-Route::get('/pc/{any}', fn () => serveSpa('pc'))->where('any', '.*');
+Route::get('/pos', fn () => $serveSpa('pos'));
+Route::get('/pos/{any}', fn () => $serveSpa('pos'))->where('any', '.*');
+
+Route::get('/pc', fn () => $serveSpa('pc'));
+Route::get('/pc/{any}', fn () => $serveSpa('pc'))->where('any', '.*');
