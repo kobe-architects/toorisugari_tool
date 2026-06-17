@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { OptionSelection, ProductDTO, Temperature } from '@shared/types';
+import type { OptionSelection, OrderSource, ProductDTO, Temperature } from '@shared/types';
 import { inclusiveTax } from '../lib/money';
 
 const STORAGE_KEY = 'pos_cart';
@@ -7,17 +7,18 @@ const STORAGE_KEY = 'pos_cart';
 export type DineType = 'dine_in' | 'takeout';
 
 export interface CartLine {
-  lineId: string; // product.id + temperature + 選択肢 の複合キー
+  lineId: string; // product.id + temperature + 注文経路 + 選択肢 の複合キー
   product: ProductDTO;
   temperature: Temperature | null;
+  orderSource: OrderSource;
   selections: OptionSelection[];
   qty: number;
 }
 
-/** 商品＋温度＋選択肢から行を一意に識別するキー。 */
-export function lineKey(productId: number, temperature: Temperature | null, selections: OptionSelection[] = []): string {
+/** 商品＋温度＋注文経路＋選択肢から行を一意に識別するキー。 */
+export function lineKey(productId: number, temperature: Temperature | null, orderSource: OrderSource, selections: OptionSelection[] = []): string {
   const sel = selections.map((s) => `${s.name}=${s.value}`).join('|');
-  return `${productId}:${temperature ?? ''}:${sel}`;
+  return `${productId}:${temperature ?? ''}:${orderSource}:${sel}`;
 }
 
 /** 温度サフィックス（ホット/アイス）付きの表示名。 */
@@ -30,7 +31,7 @@ interface CartState {
   lines: CartLine[];
   dineType: DineType;
   setDineType: (d: DineType) => void;
-  add: (p: ProductDTO, temperature?: Temperature | null, selections?: OptionSelection[]) => void;
+  add: (p: ProductDTO, temperature?: Temperature | null, selections?: OptionSelection[], orderSource?: OrderSource) => void;
   inc: (lineId: string) => void;
   dec: (lineId: string) => void;
   remove: (lineId: string) => void;
@@ -48,7 +49,7 @@ function loadStored(): { lines: CartLine[]; dineType: DineType } {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { lines: [], dineType: 'takeout' };
     const v = JSON.parse(raw);
-    const lines: CartLine[] = (Array.isArray(v.lines) ? v.lines : []).map((l: CartLine) => ({ ...l, selections: l.selections ?? [] }));
+    const lines: CartLine[] = (Array.isArray(v.lines) ? v.lines : []).map((l: CartLine) => ({ ...l, selections: l.selections ?? [], orderSource: l.orderSource ?? 'direct' }));
     return { lines, dineType: v.dineType === 'dine_in' ? 'dine_in' : 'takeout' };
   } catch {
     return { lines: [], dineType: 'takeout' };
@@ -65,12 +66,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ lines, dineType }));
   }, [lines, dineType]);
 
-  const add = (p: ProductDTO, temperature: Temperature | null = null, selections: OptionSelection[] = []) =>
+  const add = (p: ProductDTO, temperature: Temperature | null = null, selections: OptionSelection[] = [], orderSource: OrderSource = 'direct') =>
     setLines((prev) => {
-      const id = lineKey(p.id, temperature, selections);
+      const id = lineKey(p.id, temperature, orderSource, selections);
       const hit = prev.find((l) => l.lineId === id);
       if (hit) return prev.map((l) => (l.lineId === id ? { ...l, qty: l.qty + 1 } : l));
-      return [...prev, { lineId: id, product: p, temperature, selections, qty: 1 }];
+      return [...prev, { lineId: id, product: p, temperature, orderSource, selections, qty: 1 }];
     });
 
   const inc = (lineId: string) =>

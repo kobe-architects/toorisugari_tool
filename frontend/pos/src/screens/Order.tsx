@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@shared/api';
-import type { CategoryDTO, ProductDTO, ProductOption, Temperature } from '@shared/types';
+import type { CategoryDTO, OrderSource, ProductDTO, ProductOption, Temperature } from '@shared/types';
 
 /** 同名のオプショングループを1つにまとめ、選択肢を結合する。 */
 function mergeOptionGroups(opts: ProductOption[]): ProductOption[] {
@@ -28,6 +28,7 @@ export function Order() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState<ProductDTO | null>(null); // 選択中の商品
   const [pTemp, setPTemp] = useState<Temperature | null>(null);
+  const [pSource, setPSource] = useState<OrderSource>('direct'); // 注文経路（既定: 直注文）
   const [pOpts, setPOpts] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -43,12 +44,13 @@ export function Order() {
   const current = cats.find((c) => c.id === active);
 
   const onAdd = (m: ProductDTO) => {
-    if (m.has_temperature || m.options.length > 0) {
+    if (m.has_temperature || m.has_order_source || m.options.length > 0) {
       setPending(m);
       setPTemp(null);
+      setPSource('direct');
       setPOpts({});
     } else {
-      cart.add(m, null, []);
+      cart.add(m, null, [], 'direct');
     }
   };
 
@@ -61,7 +63,7 @@ export function Order() {
   const confirmAdd = () => {
     if (!pending || !ready) return;
     const selections = groups.map((g) => ({ name: g.name, value: pOpts[g.name] }));
-    cart.add(pending, pTemp, selections);
+    cart.add(pending, pTemp, selections, pSource);
     setPending(null);
   };
 
@@ -200,6 +202,25 @@ export function Order() {
                   >
                     アイス
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* 注文経路（直注文 / 試飲から）。既定は直注文 */}
+            {pending.has_order_source && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>注文経路</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {([['direct', '直注文'], ['tasting', '試飲から']] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      className={'btn' + (pSource === v ? ' btn-primary' : ' btn-ghost')}
+                      onClick={() => setPSource(v)}
+                      style={{ padding: '16px 0', fontSize: 16, borderRadius: 12, cursor: 'pointer' }}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

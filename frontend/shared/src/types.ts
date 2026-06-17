@@ -1,6 +1,7 @@
 // API レスポンス型（backend/routes/api.php と対応）
 
 export type Temperature = 'hot' | 'ice';
+export type OrderSource = 'direct' | 'tasting'; // 直注文 / 試飲から
 
 /** 商品の任意選択肢グループ（例: 産地＝宮崎/五ヶ瀬） */
 export interface ProductOption {
@@ -24,6 +25,7 @@ export interface ProductDTO {
   stamp: string | null;
   sold: boolean;
   has_temperature: boolean;
+  has_order_source: boolean;
   options: ProductOption[];
 }
 
@@ -67,7 +69,7 @@ export interface OrderPayload {
   dine_type: DineType;
   payment_method?: 'cash';
   received: number;
-  items: { product_id: number; qty: number; temperature?: Temperature | null; options?: OptionSelection[] }[];
+  items: { product_id: number; qty: number; temperature?: Temperature | null; order_source?: OrderSource; options?: OptionSelection[] }[];
   customer?: { gender: Gender | null; age_band: AgeBand | null } | null;
 }
 
@@ -114,6 +116,7 @@ export interface AdminProductDTO {
   is_sold_out: boolean;
   is_visible: boolean;
   has_temperature: boolean;
+  has_order_source: boolean;
   options: ProductOption[];
   sort_order: number;
 }
@@ -129,6 +132,7 @@ export interface ProductInput {
   is_sold_out?: boolean;
   is_visible?: boolean;
   has_temperature?: boolean;
+  has_order_source?: boolean;
   options?: ProductOption[];
 }
 
@@ -185,6 +189,7 @@ export interface SalesAnalyticsDTO {
   hours: { labels: string[]; data: number[]; peak: number };
   categories: CategorySlice[];
   products: ProductRank[];
+  by_source: { key: OrderSource; label: string; amount: number; qty: number }[];
 }
 
 export interface DistSlice {

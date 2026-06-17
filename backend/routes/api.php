@@ -46,6 +46,7 @@ Route::get('/products', function () {
                 'stamp' => $p->stamp,
                 'sold' => $p->is_sold_out,
                 'has_temperature' => $p->has_temperature,
+                'has_order_source' => $p->has_order_source,
                 'options' => $p->options ?? [],
             ]),
         ]);

@@ -165,6 +165,7 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
   const [isSoldOut, setIsSoldOut] = useState(product?.is_sold_out ?? false);
   const [isVisible, setIsVisible] = useState(product?.is_visible ?? true);
   const [hasTemperature, setHasTemperature] = useState(product?.has_temperature ?? false);
+  const [hasOrderSource, setHasOrderSource] = useState(product?.has_order_source ?? false);
   const [optGroups, setOptGroups] = useState<{ name: string; choicesText: string }[]>((product?.options ?? []).map((g) => ({ name: g.name, choicesText: g.choices.join('、') })));
   const [image, setImage] = useState<string | null>(product?.image ?? null);
   const [busy, setBusy] = useState(false);
@@ -181,7 +182,7 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
     setSaved('');
     const input: ProductInput = {
       category_id: categoryId, name: name.trim(), sub: sub.trim() || null, price: Number(price),
-      tax_rate: Number(taxRate) || 10, icon, stamp, is_sold_out: isSoldOut, is_visible: isVisible, has_temperature: hasTemperature,
+      tax_rate: Number(taxRate) || 10, icon, stamp, is_sold_out: isSoldOut, is_visible: isVisible, has_temperature: hasTemperature, has_order_source: hasOrderSource,
       options: optGroups
         .map((g) => ({ name: g.name.trim(), choices: g.choicesText.split(/[、,\s]+/).map((s) => s.trim()).filter(Boolean) }))
         .filter((g) => g.name && g.choices.length > 0),
@@ -325,7 +326,8 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
         <div style={{ background: 'var(--card)', border: '1.5px solid var(--line)', borderRadius: 13, padding: '4px 16px', marginTop: 4 }}>
           <ToggleRow title="販売状態" sub="「販売中」で会計画面に表示" on={!isSoldOut} onToggle={() => setIsSoldOut((v) => !v)} border />
           <ToggleRow title="レジに表示" sub="非表示にすると注文画面から隠れます" on={isVisible} onToggle={() => setIsVisible((v) => !v)} border />
-          <ToggleRow title="ホット/アイス選択" sub="ONで注文時に温度を選択" on={hasTemperature} onToggle={() => setHasTemperature((v) => !v)} />
+          <ToggleRow title="ホット/アイス選択" sub="ONで注文時に温度を選択" on={hasTemperature} onToggle={() => setHasTemperature((v) => !v)} border />
+          <ToggleRow title="注文経路選択" sub="ONで注文時に直注文/試飲からを選択（既定は直注文）" on={hasOrderSource} onToggle={() => setHasOrderSource((v) => !v)} />
         </div>
 
         {error && <div style={{ color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, textAlign: 'center', marginTop: 14 }}>{error}</div>}

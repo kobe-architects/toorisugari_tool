@@ -62,9 +62,12 @@ export function Cart() {
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14.5 }}>{l.product.name}</div>
-                  {(l.temperature || l.selections.length > 0) && (
+                  {(l.temperature || l.orderSource === 'tasting' || l.selections.length > 0) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
                       {l.temperature && <TempBadge t={l.temperature} />}
+                      {l.orderSource === 'tasting' && (
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'var(--leaf)', color: '#FBEFD9' }}>試飲から</span>
+                      )}
                       {l.selections.map((s) => (
                         <span key={s.name} style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'var(--paper-2)', border: '1px solid var(--line-2)', color: 'var(--ink-soft)' }}>
                           {s.value}

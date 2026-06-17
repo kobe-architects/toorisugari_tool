@@ -47,6 +47,13 @@ class AnalyticsController extends Controller
 
         $items = OrderItem::with('product.category')->whereIn('order_id', $orders->pluck('id'))->get();
 
+        // 注文経路別（直注文 / 試飲から）
+        $bySource = collect(['direct' => '直注文', 'tasting' => '試飲から'])
+            ->map(function ($label, $key) use ($items) {
+                $g = $items->where('order_source', $key);
+                return ['key' => $key, 'label' => $label, 'amount' => (int) $g->sum('line_total'), 'qty' => (int) $g->sum('qty')];
+            })->values()->all();
+
         return [
             'period' => $period,
             'year' => $year,
@@ -61,6 +68,7 @@ class AnalyticsController extends Controller
             ],
             'categories' => $this->categoryComposition($items, $total),
             'products' => $this->productRanking($items, $total),
+            'by_source' => $bySource,
         ];
     }
 

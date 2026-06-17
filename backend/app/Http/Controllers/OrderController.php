@@ -26,6 +26,7 @@ class OrderController extends Controller
             'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.temperature' => ['nullable', 'in:hot,ice'],
+            'items.*.order_source' => ['nullable', 'in:direct,tasting'],
             'items.*.options' => ['nullable', 'array'],
             'items.*.options.*.name' => ['required_with:items.*.options', 'string', 'max:40'],
             'items.*.options.*.value' => ['required_with:items.*.options', 'string', 'max:40'],
@@ -69,6 +70,7 @@ class OrderController extends Controller
             $lines[] = [
                 'product_id' => $p->id,
                 'temperature' => $temp,
+                'order_source' => $item['order_source'] ?? 'direct',
                 'options' => $opts ?: null,
                 'name' => $p->name.$suffix,
                 'price' => $p->price,

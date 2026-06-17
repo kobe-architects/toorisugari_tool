@@ -136,6 +136,23 @@ export function SalesView() {
         </Panel>
       </div>
 
+      {/* 注文経路別 */}
+      {data?.by_source && (
+        <Panel title="注文経路別 売上" sub="直注文 / 試飲から（選択期間）">
+          <div style={{ display: 'flex', gap: 24 }}>
+            {data.by_source.map((s) => (
+              <div key={s.key} style={{ flex: 1, borderLeft: s.key === 'tasting' ? '1px dashed var(--line-2)' : 'none', paddingLeft: s.key === 'tasting' ? 24 : 0 }}>
+                <div className="eyebrow" style={{ fontSize: 10 }}>{s.label}</div>
+                <div style={{ marginTop: 8 }}>
+                  <span className="stat-num" style={{ fontSize: 28 }}><span style={{ fontSize: 16 }}>¥</span>{yen(s.amount)}</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginTop: 4 }}>{s.qty}点</div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+
       {/* 商品別ランキング */}
       <Panel title="商品別 売上ランキング" sub="選択期間" right={<button className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 12.5, cursor: 'pointer' }} onClick={downloadCsv}>CSV出力</button>}>
         {!data || data.products.length === 0 ? (
