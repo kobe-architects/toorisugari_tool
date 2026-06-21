@@ -80,6 +80,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // レジ設定の更新
         Route::patch('/settings', [SettingsController::class, 'update']);
+
+        // 伝票管理（閲覧・編集・取消）
+        Route::get('/orders', [OrderController::class, 'index']);
+        Route::get('/orders/{order}', [OrderController::class, 'show']);
+        Route::patch('/orders/{order}', [OrderController::class, 'update']);
+        Route::post('/orders/{order}/void', [OrderController::class, 'void']);
     });
 
     // ---- PC分析（オーナー専用） ----

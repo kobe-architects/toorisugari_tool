@@ -9,8 +9,12 @@ import type {
   ExpenseInput,
   ExpenseMonthDTO,
   HealthDTO,
+  OrderDetailDTO,
+  OrderListParams,
+  OrderListResponse,
   OrderPayload,
   OrderResultDTO,
+  OrderUpdatePayload,
   Period,
   PinLoginResponse,
   ProductInput,
@@ -118,6 +122,26 @@ export const api = {
     },
     deleteProductImage: (id: number) => request<AdminProductDTO>('DELETE', `/admin/products/${id}/image`),
     updateSettings: (input: { cash_presets: number[] }) => request<SettingsDTO>('PATCH', '/admin/settings', input),
+
+    // ---- 伝票管理 ----
+    orders: {
+      list: (p: OrderListParams = {}) => {
+        const q = new URLSearchParams();
+        if (p.status) q.set('status', p.status);
+        if (p.q) q.set('q', p.q);
+        if (p.from) q.set('from', p.from);
+        if (p.to) q.set('to', p.to);
+        if (p.page) q.set('page', String(p.page));
+        if (p.per_page) q.set('per_page', String(p.per_page));
+        if (p.sort) q.set('sort', p.sort);
+        if (p.dir) q.set('dir', p.dir);
+        const qs = q.toString();
+        return request<OrderListResponse>('GET', `/admin/orders${qs ? `?${qs}` : ''}`);
+      },
+      get: (id: number) => request<OrderDetailDTO>('GET', `/admin/orders/${id}`),
+      update: (id: number, payload: OrderUpdatePayload) => request<OrderDetailDTO>('PATCH', `/admin/orders/${id}`, payload),
+      void: (id: number) => request<OrderDetailDTO>('POST', `/admin/orders/${id}/void`),
+    },
   },
 
   // ---- PC分析（オーナー専用） ----

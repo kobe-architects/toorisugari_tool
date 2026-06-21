@@ -48,7 +48,12 @@ export function Order() {
       setPending(m);
       setPTemp(null);
       setPSource('direct');
-      setPOpts({});
+      // 選択肢が1つだけのオプショングループは既定で選択しておく
+      const defaults: Record<string, string> = {};
+      for (const g of mergeOptionGroups(m.options)) {
+        if (g.choices.length === 1) defaults[g.name] = g.choices[0];
+      }
+      setPOpts(defaults);
     } else {
       cart.add(m, null, [], 'direct');
     }

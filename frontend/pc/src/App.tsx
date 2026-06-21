@@ -5,6 +5,7 @@ import { Login } from './screens/Login';
 import { Layout } from './components/Layout';
 import { SalesAdminPage } from './views/SalesAdminPage';
 import { CustomerView } from './views/CustomerView';
+import { OrderView } from './views/OrderView';
 import { RegisterView } from './views/RegisterView';
 
 /** 未ログインなら /login へ。トークン復元前は描画を保留。 */
@@ -24,6 +25,7 @@ export function App() {
           <Route element={<Guard><Layout /></Guard>}>
             <Route path="/" element={<SalesAdminPage />} />
             <Route path="/customer" element={<CustomerView />} />
+            <Route path="/orders" element={<OrderView />} />
             <Route path="/register" element={<RegisterView />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

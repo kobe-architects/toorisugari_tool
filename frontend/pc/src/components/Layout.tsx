@@ -4,6 +4,7 @@ import { useAuth } from '../state/AuthContext';
 const NAV = [
   { path: '/', label: '販売管理', sub: '売上・経費・損益の管理' },
   { path: '/customer', label: '顧客分析', sub: '性別・年代別の客層と来店傾向' },
+  { path: '/orders', label: '伝票管理', sub: '伝票の閲覧・編集・取消' },
   { path: '/register', label: 'レジ管理', sub: '商品・メニューの設定' },
 ];
 

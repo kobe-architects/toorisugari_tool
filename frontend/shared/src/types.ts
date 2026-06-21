@@ -94,6 +94,85 @@ export interface OrderResultDTO {
   items: OrderResultItem[];
 }
 
+// ---- 伝票管理（オーナー） ----
+export type OrderStatus = 'completed' | 'voided';
+
+/** 伝票一覧の1行（軽量） */
+export interface OrderListItemDTO {
+  id: number;
+  order_no: string;
+  status: OrderStatus;
+  dine_type: DineType;
+  total: number;
+  item_count: number;
+  staff: string | null;
+  completed_at: string | null;
+}
+
+/** 伝票一覧（ページネーション） */
+export interface OrderListResponse {
+  data: OrderListItemDTO[];
+  page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+}
+
+/** 伝票明細（編集フォーム復元用） */
+export interface OrderDetailItem {
+  id: number;
+  product_id: number;
+  name: string;
+  price: number;
+  qty: number;
+  line_total: number;
+  temperature: Temperature | null;
+  order_source: OrderSource;
+  options: OptionSelection[];
+}
+
+/** 伝票詳細 */
+export interface OrderDetailDTO {
+  id: number;
+  order_no: string;
+  status: OrderStatus;
+  dine_type: DineType;
+  subtotal: number;
+  tax: number;
+  total: number;
+  payment_method: string;
+  received: number;
+  change: number;
+  completed_at: string | null;
+  staff: string | null;
+  items: OrderDetailItem[];
+  customer: { gender: Gender | null; age_band: AgeBand | null } | null;
+}
+
+/** 伝票編集の送信ペイロード（store と同形） */
+export interface OrderUpdatePayload {
+  dine_type: DineType;
+  payment_method?: 'cash';
+  received: number;
+  items: { product_id: number; qty: number; temperature?: Temperature | null; order_source?: OrderSource; options?: OptionSelection[] }[];
+  customer?: { gender: Gender | null; age_band: AgeBand | null } | null;
+}
+
+/** 伝票一覧のソート可能な列 */
+export type OrderSortKey = 'order_no' | 'completed_at' | 'dine_type' | 'item_count' | 'total' | 'status';
+
+/** 伝票一覧の絞り込み条件 */
+export interface OrderListParams {
+  status?: OrderStatus;
+  q?: string;
+  from?: string; // YYYY-MM-DD
+  to?: string; // YYYY-MM-DD
+  page?: number;
+  per_page?: number;
+  sort?: OrderSortKey;
+  dir?: 'asc' | 'desc';
+}
+
 // ---- 管理（オーナー） ----
 export interface CategoryLiteDTO {
   id: number;
