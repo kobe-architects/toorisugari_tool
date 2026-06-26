@@ -182,6 +182,8 @@ interface EditLine {
   qty: number;
   temperature: Temperature | null;
   order_source: OrderSource;
+  gender: Gender | null;
+  age_band: AgeBand | null;
   options: OptionSelection[];
 }
 
@@ -194,8 +196,6 @@ function OrderEditModal({ id, onClose, onSaved }: { id: number; onClose: () => v
   const [lines, setLines] = useState<EditLine[]>([]);
   const [dineType, setDineType] = useState<DineType>('dine_in');
   const [received, setReceived] = useState('');
-  const [gender, setGender] = useState<Gender | ''>('');
-  const [ageBand, setAgeBand] = useState<AgeBand | ''>('');
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -205,11 +205,9 @@ function OrderEditModal({ id, onClose, onSaved }: { id: number; onClose: () => v
       .then(([d, ps]) => {
         setDetail(d);
         setProducts(ps);
-        setLines(d.items.map((i) => ({ key: newKey(), product_id: i.product_id, qty: i.qty, temperature: i.temperature, order_source: i.order_source, options: i.options })));
+        setLines(d.items.map((i) => ({ key: newKey(), product_id: i.product_id, qty: i.qty, temperature: i.temperature, order_source: i.order_source, gender: i.gender, age_band: i.age_band, options: i.options })));
         setDineType(d.dine_type);
         setReceived(String(d.received));
-        setGender(d.customer?.gender ?? '');
-        setAgeBand(d.customer?.age_band ?? '');
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [id]);
@@ -221,7 +219,7 @@ function OrderEditModal({ id, onClose, onSaved }: { id: number; onClose: () => v
   const setLine = (key: string, patch: Partial<EditLine>) => setLines((arr) => arr.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setLines((arr) => arr.filter((l) => l.key !== key));
   const addProduct = (p: AdminProductDTO) => {
-    setLines((arr) => [...arr, { key: newKey(), product_id: p.id, qty: 1, temperature: p.has_temperature ? 'hot' : null, order_source: 'direct', options: (p.options ?? []).map((g) => ({ name: g.name, value: g.choices[0] ?? '' })) }]);
+    setLines((arr) => [...arr, { key: newKey(), product_id: p.id, qty: 1, temperature: p.has_temperature ? 'hot' : null, order_source: 'direct', gender: null, age_band: null, options: (p.options ?? []).map((g) => ({ name: g.name, value: g.choices[0] ?? '' })) }]);
     setPicking(false);
   };
 
@@ -232,8 +230,7 @@ function OrderEditModal({ id, onClose, onSaved }: { id: number; onClose: () => v
     const payload: OrderUpdatePayload = {
       dine_type: dineType,
       received: Number(received) || 0,
-      items: lines.map((l) => ({ product_id: l.product_id, qty: l.qty, temperature: l.temperature, order_source: l.order_source, options: l.options.filter((o) => o.value) })),
-      customer: gender || ageBand ? { gender: gender || null, age_band: ageBand || null } : null,
+      items: lines.map((l) => ({ product_id: l.product_id, qty: l.qty, temperature: l.temperature, order_source: l.order_source, gender: l.gender, age_band: l.age_band, options: l.options.filter((o) => o.value) })),
     };
     try {
       await api.admin.orders.update(id, payload);
@@ -319,6 +316,20 @@ function OrderEditModal({ id, onClose, onSaved }: { id: number; onClose: () => v
                       ))}
                     </div>
                   )}
+                  {/* 客層（商品ごと） */}
+                  {!voided && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8, paddingLeft: 2 }}>
+                      <span className="field-label" style={{ fontSize: 11 }}>客層</span>
+                      <select style={selectStyle} value={l.gender ?? ''} onChange={(e) => setLine(l.key, { gender: (e.target.value || null) as Gender | null })}>
+                        <option value="">性別 未選択</option>
+                        {GENDERS.map((g) => <option key={g.v} value={g.v}>{g.label}</option>)}
+                      </select>
+                      <select style={selectStyle} value={l.age_band ?? ''} onChange={(e) => setLine(l.key, { age_band: (e.target.value || null) as AgeBand | null })}>
+                        <option value="">年代 未選択</option>
+                        {AGE_BANDS.map((a) => <option key={a.v} value={a.v}>{a.label}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -349,7 +360,7 @@ function OrderEditModal({ id, onClose, onSaved }: { id: number; onClose: () => v
               <span className="price" style={{ fontSize: 22 }}><span className="yen">¥</span>{yen(total)}</span>
             </div>
 
-            {/* 区分・お預かり・客層 */}
+            {/* 区分・お預かり（客層は明細ごとに編集） */}
             {!voided && (
               <div style={{ background: 'var(--card)', border: '1.5px solid var(--line)', borderRadius: 13, padding: '14px 16px', marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -367,17 +378,6 @@ function OrderEditModal({ id, onClose, onSaved }: { id: number; onClose: () => v
                     <input className="input mincho" inputMode="numeric" value={received} onChange={(e) => setReceived(e.target.value.replace(/[^0-9]/g, ''))} style={{ paddingLeft: 26, fontSize: 16 }} />
                   </div>
                   <span style={{ fontSize: 12.5, color: 'var(--ink-mute)' }}>おつり ¥{yen(Math.max(0, (Number(received) || 0) - total))}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span className="field-label" style={{ width: 90 }}>客層</span>
-                  <select style={selectStyle} value={gender} onChange={(e) => setGender(e.target.value as Gender | '')}>
-                    <option value="">性別 未選択</option>
-                    {GENDERS.map((g) => <option key={g.v} value={g.v}>{g.label}</option>)}
-                  </select>
-                  <select style={selectStyle} value={ageBand} onChange={(e) => setAgeBand(e.target.value as AgeBand | '')}>
-                    <option value="">年代 未選択</option>
-                    {AGE_BANDS.map((a) => <option key={a.v} value={a.v}>{a.label}</option>)}
-                  </select>
                 </div>
               </div>
             )}

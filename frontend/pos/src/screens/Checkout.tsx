@@ -1,34 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '@shared/api';
-import type { Gender, AgeBand, OrderPayload } from '@shared/types';
+import type { OrderPayload } from '@shared/types';
 import { useCart } from '../state/CartContext';
 import { SafeTop } from '../components/common';
 import { NumericKeypad } from '../components/NumericKeypad';
 import { yen } from '../lib/money';
-
-const GENDERS: { v: Gender; label: string }[] = [
-  { v: 'female', label: '女性' },
-  { v: 'male', label: '男性' },
-  { v: 'other', label: 'その他' },
-];
-
-const AGE_BANDS: { v: AgeBand; label: string }[] = [
-  { v: '10s', label: '10代' },
-  { v: '20s', label: '20代' },
-  { v: '30s', label: '30代' },
-  { v: '40s', label: '40代' },
-  { v: '50s', label: '50代' },
-  { v: '60plus', label: '60代〜' },
-];
 
 export function Checkout() {
   const nav = useNavigate();
   const cart = useCart();
   const total = cart.total;
 
-  const [gender, setGender] = useState<Gender | null>(null);
-  const [ageBand, setAgeBand] = useState<AgeBand | null>(null);
   const [received, setReceived] = useState<number | null>(null);
   const [presets, setPresets] = useState<number[]>([]);
   const [keypad, setKeypad] = useState(false);
@@ -42,11 +25,10 @@ export function Checkout() {
   const quickPresets = presets.filter((a) => a >= total);
 
   const change = received != null ? received - total : null;
-  const segmentDone = gender != null && ageBand != null; // 客層は必須
-  const canConfirm = received != null && received >= total && cart.count > 0 && segmentDone && !busy;
+  const canConfirm = received != null && received >= total && cart.count > 0 && !busy;
 
   const confirm = async () => {
-    if (received == null || received < total || cart.count === 0 || !segmentDone || busy) return;
+    if (received == null || received < total || cart.count === 0 || busy) return;
     setBusy(true);
     setError('');
 
@@ -54,8 +36,8 @@ export function Checkout() {
       dine_type: cart.dineType,
       payment_method: 'cash',
       received,
-      items: cart.lines.map((l) => ({ product_id: l.product.id, qty: l.qty, temperature: l.temperature, order_source: l.orderSource, options: l.selections })),
-      customer: { gender, age_band: ageBand },
+      // 客層（性別・年代）は商品ごとに入力済み。明細単位で送信する。
+      items: cart.lines.map((l) => ({ product_id: l.product.id, qty: l.qty, temperature: l.temperature, order_source: l.orderSource, gender: l.gender, age_band: l.ageBand, options: l.selections })),
     };
 
     try {
@@ -141,32 +123,6 @@ export function Checkout() {
           >
             手入力
           </button>
-        </div>
-
-        {/* customer segment tap（必須） */}
-        <div className="eyebrow" style={{ margin: '20px 2px 10px' }}>
-          客層 <span style={{ color: 'var(--accent)' }}>必須</span>
-          {!segmentDone && <span style={{ color: 'var(--ink-mute)', fontWeight: 700, marginLeft: 8, letterSpacing: 0 }}>性別・年代を選択してください</span>}
-        </div>
-        <div className="field" style={{ marginBottom: 12 }}>
-          <div className="field-label">性別</div>
-          <div className="seg">
-            {GENDERS.map((g) => (
-              <div key={g.v} className={'opt' + (gender === g.v ? ' on' : '')} onClick={() => setGender(gender === g.v ? null : g.v)}>
-                {g.label}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="field">
-          <div className="field-label">年代</div>
-          <div className="seg">
-            {AGE_BANDS.map((a) => (
-              <div key={a.v} className={'opt' + (ageBand === a.v ? ' on' : '')} onClick={() => setAgeBand(ageBand === a.v ? null : a.v)}>
-                {a.label}
-              </div>
-            ))}
-          </div>
         </div>
 
         {error && (

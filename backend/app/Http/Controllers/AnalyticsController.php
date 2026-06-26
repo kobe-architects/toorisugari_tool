@@ -123,44 +123,68 @@ class AnalyticsController extends Controller
         ];
     }
 
-    /** 顧客分析ビュー：性別・年代・サマリー。 */
+    /**
+     * 顧客分析ビュー：客層（性別・年代）を明細単位で集計。
+     * 全体に加え、商品別の客層内訳（商品ごとにタップ入力した客層）も返す。
+     * 提供数（qty）で重み付けする。
+     */
     public function customers()
     {
-        $orders = Order::where('status', 'completed')
-            ->whereHas('customerAttribute')
-            ->with('customerAttribute')
-            ->get();
+        $items = OrderItem::query()
+            ->whereHas('order', fn ($q) => $q->where('status', 'completed'))
+            ->with('product:id,name')
+            ->get(['id', 'order_id', 'product_id', 'name', 'gender', 'age_band', 'qty']);
 
-        $attrs = $orders->pluck('customerAttribute');
-        $withGender = $attrs->filter(fn ($a) => $a && $a->gender);
-        $withAge = $attrs->filter(fn ($a) => $a && $a->age_band);
+        // 商品別（客層の入力がある明細のみ）。同一商品は温度・オプション違いもまとめる。
+        $byProduct = $items
+            ->filter(fn (OrderItem $i) => $i->gender || $i->age_band)
+            ->groupBy(fn (OrderItem $i) => optional($i->product)->name ?? $i->name)
+            ->map(fn (Collection $g, $name) => array_merge(['name' => $name], $this->segmentBreakdown($g)))
+            ->sortByDesc('sample_size')
+            ->values()
+            ->all();
 
+        return array_merge($this->segmentBreakdown($items), ['by_product' => $byProduct]);
+    }
+
+    /**
+     * 明細コレクションから客層の内訳を算出（性別・年代・平均年齢・最多客層）。
+     * 件数は提供数（qty）で重み付け。
+     */
+    private function segmentBreakdown(Collection $items): array
+    {
         $genderLabels = ['female' => '女性', 'male' => '男性', 'other' => 'その他'];
-        $gender = collect($genderLabels)->map(function ($label, $key) use ($withGender) {
-            $n = $withGender->where('gender', $key)->count();
-            return ['label' => $label, 'value' => $n, 'pct' => $withGender->count() ? round($n / $withGender->count() * 100) : 0];
-        })->values();
-
         $ageOrder = ['10s' => '10代', '20s' => '20代', '30s' => '30代', '40s' => '40代', '50s' => '50代', '60plus' => '60代〜'];
-        $age = collect($ageOrder)->map(function ($label, $key) use ($withAge) {
-            $n = $withAge->where('age_band', $key)->count();
-            return ['label' => $label, 'value' => $n, 'pct' => $withAge->count() ? round($n / $withAge->count() * 100) : 0];
+        $ageMid = ['10s' => 15, '20s' => 25, '30s' => 35, '40s' => 45, '50s' => 55, '60plus' => 65];
+
+        $withGender = $items->filter(fn (OrderItem $i) => $i->gender);
+        $withAge = $items->filter(fn (OrderItem $i) => $i->age_band);
+        $gQty = (int) $withGender->sum('qty');
+        $aQty = (int) $withAge->sum('qty');
+
+        $gender = collect($genderLabels)->map(function ($label, $key) use ($withGender, $gQty) {
+            $n = (int) $withGender->where('gender', $key)->sum('qty');
+            return ['label' => $label, 'value' => $n, 'pct' => $gQty ? round($n / $gQty * 100) : 0];
         })->values();
 
-        $ageMid = ['10s' => 15, '20s' => 25, '30s' => 35, '40s' => 45, '50s' => 55, '60plus' => 65];
-        $avgAge = $withAge->count()
-            ? round($withAge->sum(fn ($a) => $ageMid[$a->age_band]) / $withAge->count(), 1)
+        $age = collect($ageOrder)->map(function ($label, $key) use ($withAge, $aQty) {
+            $n = (int) $withAge->where('age_band', $key)->sum('qty');
+            return ['label' => $label, 'value' => $n, 'pct' => $aQty ? round($n / $aQty * 100) : 0];
+        })->values();
+
+        $avgAge = $aQty
+            ? round($withAge->sum(fn (OrderItem $i) => $ageMid[$i->age_band] * $i->qty) / $aQty, 1)
             : null;
 
         $topGender = $gender->sortByDesc('value')->first();
         $topAge = $age->sortByDesc('value')->first();
 
         return [
-            'sample_size' => $attrs->count(),
+            'sample_size' => (int) $items->filter(fn (OrderItem $i) => $i->gender || $i->age_band)->sum('qty'),
             'avg_age' => $avgAge,
             'top_segment' => $topGender && $topAge && $topGender['value'] > 0 ? "{$topAge['label']}{$topGender['label']}" : '—',
-            'gender' => $gender,
-            'age' => $age,
+            'gender' => $gender->all(),
+            'age' => $age->all(),
         ];
     }
 

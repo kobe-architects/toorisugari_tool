@@ -1,8 +1,16 @@
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../state/CartContext';
-import type { Temperature } from '@shared/types';
+import type { AgeBand, Gender, Temperature } from '@shared/types';
 import { Yen, SafeTop } from '../components/common';
 import { yen } from '../lib/money';
+
+const GENDER_LABEL: Record<Gender, string> = { female: '女性', male: '男性', other: 'その他' };
+const AGE_LABEL: Record<AgeBand, string> = { '10s': '10代', '20s': '20代', '30s': '30代', '40s': '40代', '50s': '50代', '60plus': '60代〜' };
+
+/** 客層（年代＋性別）の表示。例: 20代女性 */
+function segmentLabel(gender: Gender | null, ageBand: AgeBand | null): string {
+  return `${ageBand ? AGE_LABEL[ageBand] : ''}${gender ? GENDER_LABEL[gender] : ''}` || '客層未設定';
+}
 
 /** ホット=赤 / アイス=青 のバッジ（注文時の選択肢と同色）。 */
 function TempBadge({ t }: { t: Temperature }) {
@@ -62,9 +70,12 @@ export function Cart() {
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14.5 }}>{l.product.name}</div>
-                  {(l.temperature || l.orderSource === 'tasting' || l.selections.length > 0) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                      {l.temperature && <TempBadge t={l.temperature} />}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                    {/* 客層（商品ごとに入力） */}
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'var(--gold)', color: '#3A2A12' }}>
+                      {segmentLabel(l.gender, l.ageBand)}
+                    </span>
+                    {l.temperature && <TempBadge t={l.temperature} />}
                       {l.orderSource === 'tasting' && (
                         <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'var(--leaf)', color: '#FBEFD9' }}>試飲から</span>
                       )}
@@ -73,8 +84,7 @@ export function Cart() {
                           {s.value}
                         </span>
                       ))}
-                    </div>
-                  )}
+                  </div>
                   <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', marginTop: 2 }}>{l.product.sub}</div>
                 </div>
                 <div className="stepper">

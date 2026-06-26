@@ -41,7 +41,17 @@ class DemoOrdersSeeder extends Seeder
                     $rate = (float) $p->tax_rate / 100;
                     $subtotal += $lineTotal;
                     $tax += $lineTotal - (int) round($lineTotal / (1 + $rate));
-                    $lines[] = ['product_id' => $p->id, 'name' => $p->name, 'price' => $p->price, 'qty' => $qty, 'line_total' => $lineTotal];
+                    // 客層は商品ごとに入力する方式。7割の明細に性別・年代を付与。
+                    $hasSeg = random_int(1, 10) <= 7;
+                    $lines[] = [
+                        'product_id' => $p->id,
+                        'name' => $p->name,
+                        'price' => $p->price,
+                        'qty' => $qty,
+                        'line_total' => $lineTotal,
+                        'gender' => $hasSeg ? $genders[array_rand($genders)] : null,
+                        'age_band' => $hasSeg ? $ages[array_rand($ages)] : null,
+                    ];
                 }
                 $received = (int) (ceil($subtotal / 100) * 100) + (random_int(0, 1) ? 0 : 1000);
 
@@ -60,13 +70,6 @@ class DemoOrdersSeeder extends Seeder
                 ]);
                 foreach ($lines as $line) {
                     $order->items()->create($line);
-                }
-                // 7割に客層を付与
-                if (random_int(1, 10) <= 7) {
-                    $order->customerAttribute()->create([
-                        'gender' => $genders[array_rand($genders)],
-                        'age_band' => $ages[array_rand($ages)],
-                    ]);
                 }
             }
         }

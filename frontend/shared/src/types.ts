@@ -65,12 +65,22 @@ export type Gender = 'female' | 'male' | 'other';
 export type AgeBand = '10s' | '20s' | '30s' | '40s' | '50s' | '60plus';
 export type DineType = 'dine_in' | 'takeout';
 
+/** 会計明細の送信形（客層は商品ごとにタップ入力するため明細単位で保持） */
+export interface OrderItemPayload {
+  product_id: number;
+  qty: number;
+  temperature?: Temperature | null;
+  order_source?: OrderSource;
+  gender?: Gender | null;
+  age_band?: AgeBand | null;
+  options?: OptionSelection[];
+}
+
 export interface OrderPayload {
   dine_type: DineType;
   payment_method?: 'cash';
   received: number;
-  items: { product_id: number; qty: number; temperature?: Temperature | null; order_source?: OrderSource; options?: OptionSelection[] }[];
-  customer?: { gender: Gender | null; age_band: AgeBand | null } | null;
+  items: OrderItemPayload[];
 }
 
 export interface OrderResultItem {
@@ -128,6 +138,8 @@ export interface OrderDetailItem {
   line_total: number;
   temperature: Temperature | null;
   order_source: OrderSource;
+  gender: Gender | null;
+  age_band: AgeBand | null;
   options: OptionSelection[];
 }
 
@@ -146,7 +158,6 @@ export interface OrderDetailDTO {
   completed_at: string | null;
   staff: string | null;
   items: OrderDetailItem[];
-  customer: { gender: Gender | null; age_band: AgeBand | null } | null;
 }
 
 /** 伝票編集の送信ペイロード（store と同形） */
@@ -154,8 +165,7 @@ export interface OrderUpdatePayload {
   dine_type: DineType;
   payment_method?: 'cash';
   received: number;
-  items: { product_id: number; qty: number; temperature?: Temperature | null; order_source?: OrderSource; options?: OptionSelection[] }[];
-  customer?: { gender: Gender | null; age_band: AgeBand | null } | null;
+  items: OrderItemPayload[];
 }
 
 /** 伝票一覧のソート可能な列 */
@@ -277,12 +287,23 @@ export interface DistSlice {
   pct: number;
 }
 
+/** 商品別の客層内訳（提供数=qty 重み付け） */
+export interface ProductSegmentDTO {
+  name: string;
+  sample_size: number;
+  avg_age: number | null;
+  top_segment: string;
+  gender: DistSlice[];
+  age: DistSlice[];
+}
+
 export interface CustomerAnalyticsDTO {
   sample_size: number;
   avg_age: number | null;
   top_segment: string;
   gender: DistSlice[];
   age: DistSlice[];
+  by_product: ProductSegmentDTO[];
 }
 
 // ---- 経費管理 ----

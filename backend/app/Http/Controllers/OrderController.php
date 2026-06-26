@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CustomerAttribute;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -50,14 +49,6 @@ class OrderController extends Controller
 
             foreach ($lines as $line) {
                 $order->items()->create($line);
-            }
-
-            $cust = $data['customer'] ?? null;
-            if ($cust && (! empty($cust['gender']) || ! empty($cust['age_band']))) {
-                $order->customerAttribute()->create([
-                    'gender' => $cust['gender'] ?? null,
-                    'age_band' => $cust['age_band'] ?? null,
-                ]);
             }
 
             return $order;
@@ -134,7 +125,7 @@ class OrderController extends Controller
     /** 伝票詳細（編集フォーム復元用の全項目）。 */
     public function show(Order $order)
     {
-        return $this->presentDetail($order->load(['items', 'customerAttribute', 'staff:id,name']));
+        return $this->presentDetail($order->load(['items', 'staff:id,name']));
     }
 
     /**
@@ -165,24 +156,14 @@ class OrderController extends Controller
                 'change' => $data['received'] - $total,
             ]);
 
-            // 明細は全削除して作り直す（数量・温度・経路・オプションの増減に対応）。
+            // 明細は全削除して作り直す（数量・温度・経路・客層・オプションの増減に対応）。
             $order->items()->delete();
             foreach ($lines as $line) {
                 $order->items()->create($line);
             }
-
-            $cust = $data['customer'] ?? null;
-            if ($cust && (! empty($cust['gender']) || ! empty($cust['age_band']))) {
-                $order->customerAttribute()->updateOrCreate(
-                    ['order_id' => $order->id],
-                    ['gender' => $cust['gender'] ?? null, 'age_band' => $cust['age_band'] ?? null],
-                );
-            } else {
-                $order->customerAttribute()->delete();
-            }
         });
 
-        return $this->presentDetail($order->fresh(['items', 'customerAttribute', 'staff:id,name']));
+        return $this->presentDetail($order->fresh(['items', 'staff:id,name']));
     }
 
     /** 伝票取消（論理削除）。status を voided にする。冪等。 */
@@ -190,7 +171,7 @@ class OrderController extends Controller
     {
         $order->update(['status' => 'voided']);
 
-        return $this->presentDetail($order->fresh(['items', 'customerAttribute', 'staff:id,name']));
+        return $this->presentDetail($order->fresh(['items', 'staff:id,name']));
     }
 
     /** store / update 共通の検証ルール。 */
@@ -205,12 +186,11 @@ class OrderController extends Controller
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.temperature' => ['nullable', 'in:hot,ice'],
             'items.*.order_source' => ['nullable', 'in:direct,tasting'],
+            'items.*.gender' => ['nullable', 'in:female,male,other'],     // 客層（性別）：明細単位
+            'items.*.age_band' => ['nullable', 'in:10s,20s,30s,40s,50s,60plus'], // 客層（年代）：明細単位
             'items.*.options' => ['nullable', 'array'],
             'items.*.options.*.name' => ['required_with:items.*.options', 'string', 'max:40'],
             'items.*.options.*.value' => ['required_with:items.*.options', 'string', 'max:40'],
-            'customer' => ['nullable', 'array'],
-            'customer.gender' => ['nullable', 'in:female,male,other'],
-            'customer.age_band' => ['nullable', 'in:10s,20s,30s,40s,50s,60plus'],
         ];
     }
 
@@ -255,6 +235,8 @@ class OrderController extends Controller
                 'product_id' => $p->id,
                 'temperature' => $temp,
                 'order_source' => $item['order_source'] ?? 'direct',
+                'gender' => $item['gender'] ?? null,
+                'age_band' => $item['age_band'] ?? null,
                 'options' => $opts ?: null,
                 'name' => $p->name.$suffix,
                 'price' => $p->price,
@@ -314,12 +296,10 @@ class OrderController extends Controller
                 'line_total' => $i->line_total,
                 'temperature' => $i->temperature,
                 'order_source' => $i->order_source,
+                'gender' => $i->gender,
+                'age_band' => $i->age_band,
                 'options' => $i->options ?? [],
             ])->all(),
-            'customer' => $order->customerAttribute ? [
-                'gender' => $order->customerAttribute->gender,
-                'age_band' => $order->customerAttribute->age_band,
-            ] : null,
         ];
     }
 }

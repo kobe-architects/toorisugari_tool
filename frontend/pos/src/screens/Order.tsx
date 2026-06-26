@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@shared/api';
-import type { CategoryDTO, OrderSource, ProductDTO, ProductOption, Temperature } from '@shared/types';
+import type { AgeBand, CategoryDTO, Gender, OrderSource, ProductDTO, ProductOption, Temperature } from '@shared/types';
 
 /** 同名のオプショングループを1つにまとめ、選択肢を結合する。 */
 function mergeOptionGroups(opts: ProductOption[]): ProductOption[] {
@@ -19,6 +19,21 @@ import { useAuth } from '../state/AuthContext';
 import { Yen, Stamp, SafeTop } from '../components/common';
 import { yen } from '../lib/money';
 
+const GENDERS: { v: Gender; label: string }[] = [
+  { v: 'female', label: '女性' },
+  { v: 'male', label: '男性' },
+  { v: 'other', label: 'その他' },
+];
+
+const AGE_BANDS: { v: AgeBand; label: string }[] = [
+  { v: '10s', label: '10代' },
+  { v: '20s', label: '20代' },
+  { v: '30s', label: '30代' },
+  { v: '40s', label: '40代' },
+  { v: '50s', label: '50代' },
+  { v: '60plus', label: '60代〜' },
+];
+
 export function Order() {
   const nav = useNavigate();
   const cart = useCart();
@@ -27,6 +42,9 @@ export function Order() {
   const [active, setActive] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState<ProductDTO | null>(null); // 選択中の商品
+  const [pStep, setPStep] = useState<'segment' | 'options'>('segment'); // まず客層、その後に温度など
+  const [pGender, setPGender] = useState<Gender | null>(null); // 客層（性別）
+  const [pAge, setPAge] = useState<AgeBand | null>(null); // 客層（年代）
   const [pTemp, setPTemp] = useState<Temperature | null>(null);
   const [pSource, setPSource] = useState<OrderSource>('direct'); // 注文経路（既定: 直注文）
   const [pOpts, setPOpts] = useState<Record<string, string>>({});
@@ -43,32 +61,38 @@ export function Order() {
 
   const current = cats.find((c) => c.id === active);
 
+  // 商品を選ぶと、まず客層入力モーダルを開く（客層は全商品で必須）
   const onAdd = (m: ProductDTO) => {
-    if (m.has_temperature || m.has_order_source || m.options.length > 0) {
-      setPending(m);
-      setPTemp(null);
-      setPSource('direct');
-      // 選択肢が1つだけのオプショングループは既定で選択しておく
-      const defaults: Record<string, string> = {};
-      for (const g of mergeOptionGroups(m.options)) {
-        if (g.choices.length === 1) defaults[g.name] = g.choices[0];
-      }
-      setPOpts(defaults);
-    } else {
-      cart.add(m, null, [], 'direct');
+    setPending(m);
+    setPStep('segment');
+    setPGender(null);
+    setPAge(null);
+    setPTemp(null);
+    setPSource('direct');
+    // 選択肢が1つだけのオプショングループは既定で選択しておく
+    const defaults: Record<string, string> = {};
+    for (const g of mergeOptionGroups(m.options)) {
+      if (g.choices.length === 1) defaults[g.name] = g.choices[0];
     }
+    setPOpts(defaults);
   };
 
   // 同名グループはまとめて表示・選択
   const groups = pending ? mergeOptionGroups(pending.options) : [];
 
-  // 必要な選択がすべて揃ったか
-  const ready = !!pending && (!pending.has_temperature || pTemp != null) && groups.every((g) => pOpts[g.name]);
+  // 温度・経路・オプションの入力ステップが必要な商品か
+  const hasOptionsStep = !!pending && (pending.has_temperature || pending.has_order_source || groups.length > 0);
+  // 客層（性別・年代）が揃ったか
+  const segmentReady = pGender != null && pAge != null;
+  // 温度・オプションの必須選択が揃ったか
+  const optionsReady = !!pending && (!pending.has_temperature || pTemp != null) && groups.every((g) => pOpts[g.name]);
+  // すべて揃ってカートに追加できるか
+  const ready = segmentReady && optionsReady;
 
   const confirmAdd = () => {
     if (!pending || !ready) return;
     const selections = groups.map((g) => ({ name: g.name, value: pOpts[g.name] }));
-    cart.add(pending, pTemp, selections, pSource);
+    cart.add(pending, pTemp, selections, pSource, pGender, pAge);
     setPending(null);
   };
 
@@ -186,83 +210,138 @@ export function Order() {
           <div onClick={(e) => e.stopPropagation()} className="theme-roast" style={{ width: '100%', maxHeight: '85%', overflowY: 'auto', background: 'var(--card-2)', borderRadius: '18px 18px 0 0', padding: '20px 20px 24px', boxShadow: '0 -8px 24px rgba(40,28,16,0.25)' }}>
             <div style={{ textAlign: 'center', marginBottom: 14 }}>
               <span className="section-jp" style={{ fontSize: 18 }}>{pending.name}</span>
+              <div className="eyebrow" style={{ marginTop: 4, fontSize: 10, color: 'var(--ink-mute)' }}>
+                {pStep === 'segment' ? 'まず客層を選択' : '温度・オプションを選択'}
+              </div>
             </div>
 
-            {/* 温度 */}
-            {pending.has_temperature && (
-              <div style={{ marginBottom: 16 }}>
-                <div className="eyebrow" style={{ marginBottom: 8 }}>ホット / アイス</div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <button
-                    className="btn"
-                    onClick={() => setPTemp('hot')}
-                    style={{ flex: 1, padding: '20px 0', background: 'var(--accent)', color: '#FBEFD9', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'hot' ? 1 : 0.4, outline: pTemp === 'hot' ? '3px solid rgba(176,64,46,0.35)' : 'none' }}
-                  >
-                    ホット
-                  </button>
-                  <button
-                    className="btn"
-                    onClick={() => setPTemp('ice')}
-                    style={{ flex: 1, padding: '20px 0', background: '#DCEBF5', color: '#2C4A5E', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'ice' ? 1 : 0.4, outline: pTemp === 'ice' ? '3px solid rgba(44,74,94,0.3)' : 'none' }}
-                  >
-                    アイス
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 注文経路（直注文 / 試飲から）。既定は直注文 */}
-            {pending.has_order_source && (
-              <div style={{ marginBottom: 16 }}>
-                <div className="eyebrow" style={{ marginBottom: 8 }}>注文経路</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {([['direct', '直注文'], ['tasting', '試飲から']] as const).map(([v, label]) => (
-                    <button
-                      key={v}
-                      className={'btn' + (pSource === v ? ' btn-primary' : ' btn-ghost')}
-                      onClick={() => setPSource(v)}
-                      style={{ padding: '16px 0', fontSize: 16, borderRadius: 12, cursor: 'pointer' }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 任意オプション群（産地など）。選択肢は2列グリッド表示 */}
-            {groups.map((g) => (
-              <div key={g.name} style={{ marginBottom: 16 }}>
-                <div className="eyebrow" style={{ marginBottom: 8 }}>{g.name}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {g.choices.map((c) => {
-                    const on = pOpts[g.name] === c;
-                    return (
+            {pStep === 'segment' ? (
+              <>
+                {/* 客層（性別） */}
+                <div style={{ marginBottom: 16 }}>
+                  <div className="eyebrow" style={{ marginBottom: 8 }}>性別</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    {GENDERS.map((g) => (
                       <button
-                        key={c}
-                        className={'btn' + (on ? ' btn-primary' : ' btn-ghost')}
-                        onClick={() => setPOpts((p) => ({ ...p, [g.name]: c }))}
+                        key={g.v}
+                        className={'btn' + (pGender === g.v ? ' btn-primary' : ' btn-ghost')}
+                        onClick={() => setPGender(g.v)}
                         style={{ padding: '16px 0', fontSize: 16, borderRadius: 12, cursor: 'pointer' }}
                       >
-                        {c}
+                        {g.label}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
 
-            <button
-              className="btn btn-accent"
-              onClick={confirmAdd}
-              disabled={!ready}
-              style={{ width: '100%', marginTop: 6, padding: 15, fontSize: 16, cursor: ready ? 'pointer' : 'default', opacity: ready ? 1 : 0.5 }}
-            >
-              カートに追加
-            </button>
-            <button className="btn btn-ghost" onClick={() => setPending(null)} style={{ width: '100%', marginTop: 10, padding: 12, fontSize: 14, cursor: 'pointer' }}>
-              キャンセル
-            </button>
+                {/* 客層（年代） */}
+                <div style={{ marginBottom: 16 }}>
+                  <div className="eyebrow" style={{ marginBottom: 8 }}>年代</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    {AGE_BANDS.map((a) => (
+                      <button
+                        key={a.v}
+                        className={'btn' + (pAge === a.v ? ' btn-primary' : ' btn-ghost')}
+                        onClick={() => setPAge(a.v)}
+                        style={{ padding: '16px 0', fontSize: 16, borderRadius: 12, cursor: 'pointer' }}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  className="btn btn-accent"
+                  onClick={() => (hasOptionsStep ? setPStep('options') : confirmAdd())}
+                  disabled={!segmentReady}
+                  style={{ width: '100%', marginTop: 6, padding: 15, fontSize: 16, cursor: segmentReady ? 'pointer' : 'default', opacity: segmentReady ? 1 : 0.5 }}
+                >
+                  {hasOptionsStep ? '次へ' : 'カートに追加'}
+                </button>
+                <button className="btn btn-ghost" onClick={() => setPending(null)} style={{ width: '100%', marginTop: 10, padding: 12, fontSize: 14, cursor: 'pointer' }}>
+                  キャンセル
+                </button>
+              </>
+            ) : (
+              <>
+                {/* 温度 */}
+                {pending.has_temperature && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div className="eyebrow" style={{ marginBottom: 8 }}>ホット / アイス</div>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <button
+                        className="btn"
+                        onClick={() => setPTemp('hot')}
+                        style={{ flex: 1, padding: '20px 0', background: 'var(--accent)', color: '#FBEFD9', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'hot' ? 1 : 0.4, outline: pTemp === 'hot' ? '3px solid rgba(176,64,46,0.35)' : 'none' }}
+                      >
+                        ホット
+                      </button>
+                      <button
+                        className="btn"
+                        onClick={() => setPTemp('ice')}
+                        style={{ flex: 1, padding: '20px 0', background: '#DCEBF5', color: '#2C4A5E', fontSize: 18, borderRadius: 14, cursor: 'pointer', opacity: pTemp === 'ice' ? 1 : 0.4, outline: pTemp === 'ice' ? '3px solid rgba(44,74,94,0.3)' : 'none' }}
+                      >
+                        アイス
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 注文経路（直注文 / 試飲から）。既定は直注文 */}
+                {pending.has_order_source && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div className="eyebrow" style={{ marginBottom: 8 }}>注文経路</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      {([['direct', '直注文'], ['tasting', '試飲から']] as const).map(([v, label]) => (
+                        <button
+                          key={v}
+                          className={'btn' + (pSource === v ? ' btn-primary' : ' btn-ghost')}
+                          onClick={() => setPSource(v)}
+                          style={{ padding: '16px 0', fontSize: 16, borderRadius: 12, cursor: 'pointer' }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 任意オプション群（産地など）。選択肢は2列グリッド表示 */}
+                {groups.map((g) => (
+                  <div key={g.name} style={{ marginBottom: 16 }}>
+                    <div className="eyebrow" style={{ marginBottom: 8 }}>{g.name}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      {g.choices.map((c) => {
+                        const on = pOpts[g.name] === c;
+                        return (
+                          <button
+                            key={c}
+                            className={'btn' + (on ? ' btn-primary' : ' btn-ghost')}
+                            onClick={() => setPOpts((p) => ({ ...p, [g.name]: c }))}
+                            style={{ padding: '16px 0', fontSize: 16, borderRadius: 12, cursor: 'pointer' }}
+                          >
+                            {c}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  className="btn btn-accent"
+                  onClick={confirmAdd}
+                  disabled={!ready}
+                  style={{ width: '100%', marginTop: 6, padding: 15, fontSize: 16, cursor: ready ? 'pointer' : 'default', opacity: ready ? 1 : 0.5 }}
+                >
+                  カートに追加
+                </button>
+                <button className="btn btn-ghost" onClick={() => setPStep('segment')} style={{ width: '100%', marginTop: 10, padding: 12, fontSize: 14, cursor: 'pointer' }}>
+                  ← 客層に戻る
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
