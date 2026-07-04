@@ -47,6 +47,7 @@ Route::get('/products', function () {
                 'sold' => $p->is_sold_out,
                 'has_temperature' => $p->has_temperature,
                 'has_order_source' => $p->has_order_source,
+                'show_on_lp' => $p->show_on_lp,
                 'options' => $p->options ?? [],
             ]),
         ]);

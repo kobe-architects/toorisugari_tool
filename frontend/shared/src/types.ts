@@ -26,6 +26,7 @@ export interface ProductDTO {
   sold: boolean;
   has_temperature: boolean;
   has_order_source: boolean;
+  show_on_lp: boolean;
   options: ProductOption[];
 }
 
@@ -206,6 +207,7 @@ export interface AdminProductDTO {
   is_visible: boolean;
   has_temperature: boolean;
   has_order_source: boolean;
+  show_on_lp: boolean;
   options: ProductOption[];
   sort_order: number;
 }
@@ -222,6 +224,7 @@ export interface ProductInput {
   is_visible?: boolean;
   has_temperature?: boolean;
   has_order_source?: boolean;
+  show_on_lp?: boolean;
   options?: ProductOption[];
 }
 
