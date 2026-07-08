@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@shared/api';
-import type { AgeBand, CategoryDTO, Gender, OrderSource, ProductDTO, ProductOption, Temperature } from '@shared/types';
+import type { AgeBand, CategoryDTO, Gender, OrderSource, ProductDTO, ProductOption, RegionDTO, Temperature } from '@shared/types';
 
 /** 同名のオプショングループを1つにまとめ、選択肢を結合する。 */
 function mergeOptionGroups(opts: ProductOption[]): ProductOption[] {
@@ -48,6 +48,11 @@ export function Order() {
   const [pTemp, setPTemp] = useState<Temperature | null>(null);
   const [pSource, setPSource] = useState<OrderSource>('direct'); // 注文経路（既定: 直注文）
   const [pOpts, setPOpts] = useState<Record<string, string>>({});
+  const [region, setRegion] = useState<RegionDTO | null>(null); // 本日の営業地域
+
+  useEffect(() => {
+    api.operatingDay.today().then((t) => setRegion(t.region)).catch(() => { /* 補助表示のため無視 */ });
+  }, []);
 
   useEffect(() => {
     api
@@ -133,6 +138,21 @@ export function Order() {
             {staff?.initial ?? '茶'}
           </button>
         </div>
+      </div>
+
+      {/* 本日の営業地域（タップで変更） */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px 10px', position: 'relative', zIndex: 3 }}>
+        <button
+          onClick={() => nav('/open')}
+          className="chip"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, padding: '6px 12px', maxWidth: '100%' }}
+          title="本日の営業地域を変更"
+        >
+          <span style={{ fontSize: 12 }}>📍</span>
+          <span style={{ fontWeight: 700, color: region ? 'var(--ink)' : 'var(--ink-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {region ? (region.label || region.name) : '営業地域を設定'}
+          </span>
+        </button>
       </div>
 
       {/* category chips */}

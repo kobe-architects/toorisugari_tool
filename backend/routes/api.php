@@ -5,8 +5,13 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\GeoController;
+use App\Http\Controllers\LpConfigController;
+use App\Http\Controllers\OperatingDayController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SystemSettingController;
+use App\Http\Controllers\WeatherController;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -56,6 +61,9 @@ Route::get('/products', function () {
 // レジ設定（プリセット金額など・非機密のため公開）
 Route::get('/settings', [SettingsController::class, 'index']);
 
+// LP（公式サイト）設定（公開・LPが参照）
+Route::get('/lp-config', [LpConfigController::class, 'index']);
+
 // ---- 認証 ----
 Route::get('/staff', [AuthController::class, 'staff']);
 Route::post('/auth/pin', [AuthController::class, 'pinLogin']);    // レジ（スタッフPIN）
@@ -67,6 +75,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // 会計確定（DB保存）
     Route::post('/orders', [OrderController::class, 'store']);
+
+    // ジオコーディング（POS・PC共用）と営業日の地域設定（POS）
+    Route::get('/geo/search', [GeoController::class, 'search']);
+    Route::get('/geo/reverse', [GeoController::class, 'reverse']);
+    Route::get('/operating-day/today', [OperatingDayController::class, 'today']);
+    Route::post('/operating-day', [OperatingDayController::class, 'store']);
 
     // ---- 管理（オーナー専用） ----
     Route::middleware('owner')->prefix('admin')->group(function () {
@@ -82,6 +96,14 @@ Route::middleware('auth:sanctum')->group(function () {
         // レジ設定の更新
         Route::patch('/settings', [SettingsController::class, 'update']);
 
+        // システム設定（POSログイン時のデフォルト地域）
+        Route::get('/system-settings', [SystemSettingController::class, 'index']);
+        Route::patch('/system-settings', [SystemSettingController::class, 'update']);
+
+        // LP（公式サイト）設定の更新・画像アップロード
+        Route::patch('/lp-config', [LpConfigController::class, 'update']);
+        Route::post('/lp-config/image', [LpConfigController::class, 'uploadImage']);
+
         // 伝票管理（閲覧・編集・取消）
         Route::get('/orders', [OrderController::class, 'index']);
         Route::get('/orders/{order}', [OrderController::class, 'show']);
@@ -95,6 +117,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sales.csv', [AnalyticsController::class, 'salesCsv']);
         Route::get('/customers', [AnalyticsController::class, 'customers']);
         Route::get('/profit', [AnalyticsController::class, 'profit']);
+        Route::get('/weather', [WeatherController::class, 'daily']);
+        Route::post('/weather', [WeatherController::class, 'saveOverride']);
+        Route::delete('/weather/{date}', [WeatherController::class, 'deleteOverride']);
     });
 
     // ---- 経費管理・名目マスタ（オーナー専用） ----

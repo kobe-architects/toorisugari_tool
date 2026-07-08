@@ -6,6 +6,8 @@ const NAV = [
   { path: '/customer', label: '顧客分析', sub: '性別・年代別の客層と来店傾向' },
   { path: '/orders', label: '伝票管理', sub: '伝票の閲覧・編集・取消' },
   { path: '/register', label: 'レジ管理', sub: '商品・メニューの設定' },
+  { path: '/lp', label: 'LP設定', sub: '公式サイト（LP）の各セクションを編集' },
+  { path: '/system', label: 'システム設定', sub: '地域・天気表示などの設定' },
 ];
 
 export function Layout() {

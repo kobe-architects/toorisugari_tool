@@ -8,7 +8,15 @@ import type {
   ExpenseDTO,
   ExpenseInput,
   ExpenseMonthDTO,
+  GeocodeCandidate,
   HealthDTO,
+  LpConfigDTO,
+  LpSection,
+  OperatingDayDTO,
+  RegionDTO,
+  RegionSource,
+  ReverseGeocodeDTO,
+  TodayOperatingDTO,
   OrderDetailDTO,
   OrderListParams,
   OrderListResponse,
@@ -22,7 +30,11 @@ import type {
   SalesAnalyticsDTO,
   SettingsDTO,
   StaffDTO,
+  SystemSettingsDTO,
   TodaySummaryDTO,
+  WeatherDayDTO,
+  WeatherMonthDTO,
+  WeatherOverrideInput,
 } from './types';
 
 // API のベースURLを SPA の公開ベース(import.meta.env.BASE_URL)から自動導出する。
@@ -98,6 +110,23 @@ export const api = {
   logout: () => request<void>('POST', '/auth/logout'),
   createOrder: (payload: OrderPayload) => request<OrderResultDTO>('POST', '/orders', payload),
   settings: () => request<SettingsDTO>('GET', '/settings'),
+  lpConfig: () => request<LpConfigDTO>('GET', '/lp-config'),
+
+  // ---- ジオコーディング（ログイン必須・POS/PC共用） ----
+  geo: {
+    /** 地域名の検索。 */
+    search: (q: string) => request<{ results: GeocodeCandidate[] }>('GET', `/geo/search?q=${encodeURIComponent(q)}`),
+    /** GPS座標 → 地域。 */
+    reverse: (lat: number, lon: number) => request<ReverseGeocodeDTO>('GET', `/geo/reverse?lat=${lat}&lon=${lon}`),
+  },
+
+  // ---- 営業日の地域設定（POSレジ・ログイン必須） ----
+  operatingDay: {
+    /** 本日の営業地域とデフォルト地域を取得。 */
+    today: () => request<TodayOperatingDTO>('GET', '/operating-day/today'),
+    /** 本日の営業地域を設定。 */
+    set: (region: RegionDTO, source: RegionSource) => request<OperatingDayDTO>('POST', '/operating-day', { region, source }),
+  },
 
   // ---- 管理（オーナー専用） ----
   admin: {
@@ -122,6 +151,27 @@ export const api = {
     },
     deleteProductImage: (id: number) => request<AdminProductDTO>('DELETE', `/admin/products/${id}/image`),
     updateSettings: (input: { cash_presets: number[] }) => request<SettingsDTO>('PATCH', '/admin/settings', input),
+
+    // ---- システム設定（POSログイン時のデフォルト地域） ----
+    systemSettings: () => request<SystemSettingsDTO>('GET', '/admin/system-settings'),
+    updateSystemSettings: (input: SystemSettingsDTO) => request<SystemSettingsDTO>('PATCH', '/admin/system-settings', input),
+
+    // ---- LP（公式サイト）設定 ----
+    /** 1セクション分だけ更新（他セクションには影響しない）。 */
+    updateLpSection: <K extends LpSection>(section: K, data: LpConfigDTO[K]) =>
+      request<LpConfigDTO>('PATCH', '/admin/lp-config', { section, data }),
+    /** LP用画像アップロード（multipart）。表示用の絶対URLを返す。 */
+    uploadLpImage: async (file: File): Promise<{ url: string }> => {
+      const fd = new FormData();
+      fd.append('image', file);
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      const res = await fetch(`${BASE}/admin/lp-config/image`, { method: 'POST', headers, body: fd });
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+      if (!res.ok) throw new ApiError(res.status, (data && data.message) || `API ${res.status}`, data?.errors);
+      return data as { url: string };
+    },
 
     // ---- 伝票管理 ----
     orders: {
@@ -154,6 +204,12 @@ export const api = {
     },
     customers: () => request<CustomerAnalyticsDTO>('GET', '/analytics/customers'),
     profit: (year: number) => request<ProfitDTO>('GET', `/analytics/profit?year=${year}`),
+    /** 指定年月の日別天気（伝票のある日だけ）。 */
+    weather: (year: number, month: number) => request<WeatherMonthDTO>('GET', `/analytics/weather?year=${year}&month=${month}`),
+    /** 天気の手動登録・更新（1日分）。 */
+    saveWeather: (input: WeatherOverrideInput) => request<WeatherDayDTO>('POST', '/analytics/weather', input),
+    /** 天気の手動登録を削除（自動取得に戻す）。 */
+    deleteWeather: (date: string) => request<void>('DELETE', `/analytics/weather/${date}`),
     /** CSVをBlobで取得（認証ヘッダ付き）。 */
     salesCsv: async (period: Period, opts?: { year?: number; month?: number }): Promise<Blob> => {
       const q = new URLSearchParams({ period });

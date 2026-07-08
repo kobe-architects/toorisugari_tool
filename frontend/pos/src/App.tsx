@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './state/AuthContext';
 import { CartProvider } from './state/CartContext';
 import { Login } from './screens/Login';
+import { RegionSetup } from './screens/RegionSetup';
 import { Order } from './screens/Order';
 import { Cart } from './screens/Cart';
 import { Checkout } from './screens/Checkout';
@@ -35,6 +36,7 @@ export function App() {
         <CartProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/open" element={<Guard><RegionSetup /></Guard>} />
             <Route path="/" element={<Guard><Order /></Guard>} />
             <Route path="/cart" element={<Guard><Cart /></Guard>} />
             <Route path="/checkout" element={<Guard><Checkout /></Guard>} />

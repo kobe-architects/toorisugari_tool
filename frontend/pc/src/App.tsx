@@ -7,6 +7,8 @@ import { SalesAdminPage } from './views/SalesAdminPage';
 import { CustomerView } from './views/CustomerView';
 import { OrderView } from './views/OrderView';
 import { RegisterView } from './views/RegisterView';
+import { LpView } from './views/LpView';
+import { SystemSettingsView } from './views/SystemSettingsView';
 
 /** 未ログインなら /login へ。トークン復元前は描画を保留。 */
 function Guard({ children }: { children: ReactElement }) {
@@ -27,6 +29,8 @@ export function App() {
             <Route path="/customer" element={<CustomerView />} />
             <Route path="/orders" element={<OrderView />} />
             <Route path="/register" element={<RegisterView />} />
+            <Route path="/lp" element={<LpView />} />
+            <Route path="/system" element={<SystemSettingsView />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

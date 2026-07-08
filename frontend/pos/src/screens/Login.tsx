@@ -39,7 +39,7 @@ export function Login() {
     setError('');
     try {
       await login(picked, pin);
-      nav('/', { replace: true });
+      nav('/open', { replace: true });
     } catch (e) {
       if (e instanceof ApiError && e.errors?.pin) setError(e.errors.pin[0]);
       else setError(e instanceof Error ? e.message : 'ログインに失敗しました');

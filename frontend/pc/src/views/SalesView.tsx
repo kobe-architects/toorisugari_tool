@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '@shared/api';
-import type { Period, SalesAnalyticsDTO } from '@shared/types';
+import type { Period, SalesAnalyticsDTO, WeatherDayDTO, WeatherIconKind } from '@shared/types';
 import { AreaChart, ColumnChart, Donut, RankTable } from '../charts';
 import { Panel, Legend } from '../components/Panel';
+import { WeatherIcon } from '../components/WeatherIcon';
 import { yen } from '../lib/format';
 
 const PERIOD_TABS: { k: Period; label: string }[] = [
@@ -31,6 +32,8 @@ export function SalesView() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<SalesAnalyticsDTO | null>(null);
+  const [weather, setWeather] = useState<Record<number, WeatherDayDTO>>({});
+  const [editDay, setEditDay] = useState<number | null>(null); // 天気を手動編集中の日
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -40,6 +43,20 @@ export function SalesView() {
       .then(setData)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [period, year, month]);
+
+  // 日次のみ、伝票のある日の天気を取得（自動＋手動登録をマージ済み）。
+  const loadWeather = useCallback(() => {
+    if (period !== 'day') { setWeather({}); return; }
+    api.analytics
+      .weather(year, month)
+      .then((w) => setWeather(w.configured ? Object.fromEntries(w.days.map((d) => [d.day, d])) : {}))
+      .catch(() => { /* 天気は補助情報のため失敗しても無視 */ });
+  }, [period, year, month]);
+
+  useEffect(() => {
+    setWeather({});
+    loadWeather();
+  }, [loadWeather]);
 
   const downloadCsv = async () => {
     const blob = await api.analytics.salesCsv(period, { year, month });
@@ -103,8 +120,8 @@ export function SalesView() {
           <div style={{ padding: 30, textAlign: 'center', color: 'var(--ink-mute)' }}>読み込み中…</div>
         ) : (
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-            <div style={{ width: 480, flexShrink: 0 }}>
-              <TrendTable period={period} data={data} />
+            <div style={{ width: period === 'day' ? 540 : 480, flexShrink: 0 }}>
+              <TrendTable period={period} data={data} weather={weather} onEditWeather={period === 'day' ? setEditDay : undefined} />
             </div>
             <div style={{ flex: 1, minWidth: 0, paddingTop: 6 }}>
               <AreaChart
@@ -161,34 +178,189 @@ export function SalesView() {
           <RankTable rows={data.products} />
         )}
       </Panel>
+
+      {/* 天気の手動登録モーダル */}
+      {editDay != null && (
+        <WeatherEditor
+          year={year}
+          month={month}
+          day={editDay}
+          current={weather[editDay]}
+          onClose={() => setEditDay(null)}
+          onSaved={() => { setEditDay(null); loadWeather(); }}
+        />
+      )}
     </div>
   );
 }
 
-function TrendTable({ period, data }: { period: Period; data: SalesAnalyticsDTO }) {
-  // 4列を等間隔のグリッドにし、全幅に間延びしないよう最大幅を制限
-  const cols = '88px 1fr 1fr 1fr';
+const ICON_CHOICES: { k: WeatherIconKind; label: string }[] = [
+  { k: 'sunny', label: '晴れ' },
+  { k: 'partly', label: '晴れ時々曇り' },
+  { k: 'cloudy', label: '曇り' },
+  { k: 'rain', label: '雨' },
+  { k: 'snow', label: '雪' },
+  { k: 'thunder', label: '雷雨' },
+];
+
+/** 天気の手動登録・修正モーダル。伝票のある日に対して1日分を上書きする。 */
+function WeatherEditor({
+  year, month, day, current, onClose, onSaved,
+}: {
+  year: number; month: number; day: number; current?: WeatherDayDTO; onClose: () => void; onSaved: () => void;
+}) {
+  const [icon, setIcon] = useState<WeatherIconKind>(current?.icon ?? 'sunny');
+  const [tmax, setTmax] = useState(current?.tmax != null ? String(current.tmax) : '');
+  const [tmin, setTmin] = useState(current?.tmin != null ? String(current.tmin) : '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+  const save = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await api.analytics.saveWeather({
+        date,
+        icon,
+        tmax: tmax.trim() === '' ? null : Number(tmax),
+        tmin: tmin.trim() === '' ? null : Number(tmin),
+      });
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存に失敗しました');
+      setBusy(false);
+    }
+  };
+
+  const revert = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await api.analytics.deleteWeather(date);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '削除に失敗しました');
+      setBusy(false);
+    }
+  };
+
+  const tInput: React.CSSProperties = {
+    width: 90, background: 'var(--card-2)', border: '1.5px solid var(--line-2)', borderRadius: 8,
+    padding: '8px 10px', fontFamily: 'var(--gothic)', fontSize: 14, color: 'var(--ink)',
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(40,28,16,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} className="ticket" style={{ width: 420, maxWidth: '92vw', padding: '22px 24px', background: 'var(--card)' }}>
+        <div className="eyebrow" style={{ fontSize: 11 }}>天気の登録・修正</div>
+        <div style={{ fontFamily: 'var(--mincho)', fontWeight: 700, fontSize: 18, marginTop: 4, marginBottom: 4 }}>{month}月{day}日</div>
+        <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', marginBottom: 16 }}>
+          {current?.source === 'manual' ? '現在：手動登録' : current ? '現在：自動取得（上書きできます）' : '未登録'}
+        </div>
+
+        {/* アイコン選択 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
+          {ICON_CHOICES.map((c) => {
+            const on = c.k === icon;
+            return (
+              <button
+                key={c.k}
+                onClick={() => setIcon(c.k)}
+                className="btn"
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 4px', borderRadius: 10, cursor: 'pointer', border: on ? '2px solid var(--accent)' : '1.5px solid var(--line-2)', background: on ? 'rgba(176,64,46,0.06)' : 'var(--card-2)' }}
+              >
+                <WeatherIcon kind={c.k} size={26} />
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: on ? 'var(--accent)' : 'var(--ink-soft)' }}>{c.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 気温 */}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 18 }}>
+          <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-soft)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            最高<input type="number" step="0.1" value={tmax} onChange={(e) => setTmax(e.target.value)} style={tInput} />℃
+          </label>
+          <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-soft)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            最低<input type="number" step="0.1" value={tmin} onChange={(e) => setTmin(e.target.value)} style={tInput} />℃
+          </label>
+        </div>
+
+        {error && <div style={{ fontSize: 12.5, color: 'var(--accent)', fontWeight: 700, marginBottom: 12 }}>{error}</div>}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button className="btn btn-accent" onClick={save} disabled={busy} style={{ padding: '10px 22px', fontSize: 14, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}>
+            {busy ? '保存中…' : '保存'}
+          </button>
+          {current?.source === 'manual' && (
+            <button className="btn btn-ghost" onClick={revert} disabled={busy} style={{ padding: '10px 16px', fontSize: 13, cursor: busy ? 'default' : 'pointer' }}>
+              自動に戻す
+            </button>
+          )}
+          <button className="btn" onClick={onClose} disabled={busy} style={{ marginLeft: 'auto', padding: '10px 16px', fontSize: 13, background: 'transparent', color: 'var(--ink-mute)', cursor: 'pointer' }}>
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrendTable({ period, data, weather, onEditWeather }: { period: Period; data: SalesAnalyticsDTO; weather: Record<number, WeatherDayDTO>; onEditWeather?: (day: number) => void }) {
+  // 日次のみ「天気」列を追加。全幅に間延びしないよう最大幅を制限
+  const showWeather = period === 'day';
+  const cols = showWeather ? '64px 92px 1fr 1fr 1fr' : '88px 1fr 1fr 1fr';
   return (
     <div style={{ width: '100%' }}>
       <div style={{ display: 'grid', gridTemplateColumns: cols, fontSize: 10.5, color: 'var(--ink-mute)', fontWeight: 700, letterSpacing: '0.1em', padding: '0 12px 10px' }}>
         <span>{COL_LABEL[period]}</span>
+        {showWeather && <span>天気</span>}
         <span style={{ textAlign: 'right' }}>売上</span>
         <span style={{ textAlign: 'right' }}>会計件数</span>
         <span style={{ textAlign: 'right' }}>客単価</span>
       </div>
       <div style={{ maxHeight: 440, overflowY: 'auto' }}>
-        {data.rows.map((r, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', padding: '10px 12px', borderTop: '1px dashed var(--line-2)', opacity: r.count === 0 ? 0.5 : 1 }}>
-            <span style={{ fontWeight: 700, fontSize: 13.5 }}>{r.label}</span>
-            <span style={{ textAlign: 'right' }} className="price">
-              <span className="yen">¥</span>{yen(r.sales)}
-            </span>
-            <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--ink-soft)' }}>{r.count}</span>
-            <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--ink-soft)' }}>
-              {r.count ? `¥${yen(r.avg)}` : '—'}
-            </span>
-          </div>
-        ))}
+        {data.rows.map((r, i) => {
+          const day = Number(r.label.split('/')[1]);
+          const w = showWeather ? weather[day] : undefined;
+          const hasOrders = r.count > 0;
+          // 天気は伝票のある日だけ表示・登録可。クリックで手動登録・修正。
+          const editable = showWeather && hasOrders && !!onEditWeather;
+          return (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', padding: '10px 12px', borderTop: '1px dashed var(--line-2)', opacity: r.count === 0 ? 0.5 : 1 }}>
+              <span style={{ fontWeight: 700, fontSize: 13.5 }}>{r.label}</span>
+              {showWeather && (
+                <span
+                  onClick={editable ? () => onEditWeather!(day) : undefined}
+                  title={editable ? '天気を登録・修正' : undefined}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: editable ? 'pointer' : 'default', borderRadius: 6, padding: '2px 4px', margin: '-2px -4px' }}
+                >
+                  {w ? (
+                    <>
+                      <WeatherIcon kind={w.icon} size={19} title={w.region ? `${w.label}・${w.region}` : w.label} />
+                      <span style={{ fontSize: 11, color: 'var(--ink-soft)', whiteSpace: 'nowrap' }}>
+                        {w.tmax != null ? Math.round(w.tmax) : '—'}°/{w.tmin != null ? Math.round(w.tmin) : '—'}°
+                      </span>
+                      {w.source === 'manual' && <span title="手動登録" style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--accent)' }}>手</span>}
+                    </>
+                  ) : editable ? (
+                    <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>＋登録</span>
+                  ) : (
+                    <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>—</span>
+                  )}
+                </span>
+              )}
+              <span style={{ textAlign: 'right' }} className="price">
+                <span className="yen">¥</span>{yen(r.sales)}
+              </span>
+              <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--ink-soft)' }}>{r.count}</span>
+              <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--ink-soft)' }}>
+                {r.count ? `¥${yen(r.avg)}` : '—'}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

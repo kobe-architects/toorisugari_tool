@@ -62,6 +62,115 @@ export interface SettingsDTO {
   cash_presets: number[]; // お預かりクイック金額
 }
 
+// ---- システム設定（地域・天気） ----
+/** 登録済みの地域（Open-Meteo で解決した緯度経度つき）。 */
+export interface RegionDTO {
+  name: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+}
+
+export interface SystemSettingsDTO {
+  region: RegionDTO | null;
+  fallback?: RegionDTO; // 未設定時のフォールバック地域（指宿市）
+}
+
+/** 地域検索（ジオコーディング）の候補。 */
+export interface GeocodeCandidate {
+  name: string;
+  label: string;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string;
+}
+
+/** 営業地域の設定元。 */
+export type RegionSource = 'gps' | 'default' | 'search' | 'manual';
+
+/** リバースジオコーディング（GPS座標→地域）の結果。 */
+export interface ReverseGeocodeDTO {
+  result: RegionDTO;
+}
+
+/** POSレジ・本日の営業地域（未設定なら region=null）。default はシステム設定のデフォルト地域。 */
+export interface TodayOperatingDTO {
+  date: string; // YYYY-MM-DD
+  region: RegionDTO | null;
+  source: RegionSource | null;
+  default: RegionDTO | null;
+}
+
+/** 営業地域の保存結果。 */
+export interface OperatingDayDTO {
+  date: string;
+  region: RegionDTO;
+  source: RegionSource | null;
+}
+
+/** 天気アイコンの種別（frontend の WeatherIcon と対応）。 */
+export type WeatherIconKind = 'sunny' | 'partly' | 'cloudy' | 'rain' | 'snow' | 'thunder';
+
+/** 1日分の天気。 */
+export interface WeatherDayDTO {
+  date: string; // YYYY-MM-DD
+  day: number; // 日（1-31）
+  code: number | null; // WMO weather code（手動登録は null）
+  icon: WeatherIconKind;
+  label: string; // 日本語の天気名
+  tmax: number | null;
+  tmin: number | null;
+  region: string | null; // その日に使った地域（営業地域 or デフォルト）
+  source: 'auto' | 'manual'; // 自動取得 / 手動登録
+}
+
+/** 天気の手動登録の入力。 */
+export interface WeatherOverrideInput {
+  date: string; // YYYY-MM-DD
+  icon: WeatherIconKind;
+  tmax: number | null;
+  tmin: number | null;
+}
+
+/** 指定年月の日別天気（未設定なら configured=false）。 */
+export interface WeatherMonthDTO {
+  configured: boolean;
+  region: string | null;
+  days: WeatherDayDTO[];
+}
+
+// ---- LP（公式サイト）設定 ----
+export interface LpCommon {
+  logo: string | null; // ロゴ画像URL（null=LP同梱画像）
+}
+export interface LpHero {
+  slides: string[]; // PC用スライド画像URL（空=LP同梱の既定画像）
+  slides_sp: string[]; // スマホ用スライド画像URL（空=LP同梱のSP既定画像）
+  interval_sec: number; // スライド切替の秒数
+  title: string; // キャッチ（改行可）
+  subtitle: string; // 副題
+}
+export interface LpConcept {
+  text: string;
+}
+export interface LpAbout {
+  image: string | null; // 画像URL（null=LP同梱画像）
+  heading: string;
+  text: string; // 段落は空行で区切り
+}
+export interface LpFooter {
+  text: string; // 改行可
+}
+export interface LpConfigDTO {
+  common: LpCommon;
+  hero: LpHero;
+  concept: LpConcept;
+  about: LpAbout;
+  footer: LpFooter;
+}
+export type LpSection = keyof LpConfigDTO;
+
 export type Gender = 'female' | 'male' | 'other';
 export type AgeBand = '10s' | '20s' | '30s' | '40s' | '50s' | '60plus';
 export type DineType = 'dine_in' | 'takeout';

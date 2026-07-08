@@ -3,7 +3,24 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>とおりすがりの和紅茶</title>
+<title>とおりすがりの和紅茶｜指宿・鹿児島のイベント出店 和紅茶スタンド</title>
+<meta name="description" content="鹿児島・指宿のイベントやマルシェにふらっと出現する和紅茶（国産紅茶）スタンド「とおりすがりの和紅茶」。宮崎・五ヶ瀬や静岡の茶農家が育てた和紅茶を一杯から。出店情報はInstagramで発信中。" />
+<link rel="canonical" href="https://toorisugari-wakoucha.jp/" />
+<meta name="robots" content="index, follow" />
+
+<!-- OGP（SNS・LINE共有用） -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="とおりすがりの和紅茶" />
+<meta property="og:title" content="とおりすがりの和紅茶｜指宿・鹿児島のイベント出店 和紅茶スタンド" />
+<meta property="og:description" content="鹿児島・指宿のイベントやマルシェにふらっと出現する和紅茶スタンド。茶農家のこだわりを一杯に。" />
+<meta property="og:url" content="https://toorisugari-wakoucha.jp/" />
+<meta property="og:image" content="https://toorisugari-wakoucha.jp/lp-assets/assets/og-image.jpg" />
+<meta property="og:locale" content="ja_JP" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="とおりすがりの和紅茶｜指宿・鹿児島のイベント出店 和紅茶スタンド" />
+<meta name="twitter:description" content="鹿児島・指宿のイベントやマルシェにふらっと出現する和紅茶スタンド。茶農家のこだわりを一杯に。" />
+<meta name="twitter:image" content="https://toorisugari-wakoucha.jp/lp-assets/assets/og-image.jpg" />
+
 <link rel="icon" type="image/png" href="lp-assets/assets/farmer-icon.png" />
 <link rel="apple-touch-icon" href="lp-assets/assets/farmer-icon.png" />
 <link rel="stylesheet" href="lp-assets/theme.css" />
@@ -249,8 +266,10 @@
   </div>
   <div class="hero-scrim"></div>
   <div class="hero-glow"></div>
-  <img class="logo logo-color rv" src="lp-assets/assets/logo.png" alt="とおりすがりの和紅茶" style="--d:.1s" />
-  <img class="logo logo-cream rv" src="lp-assets/assets/logo-cream.png" alt="とおりすがりの和紅茶" style="--d:.1s" aria-hidden="true" />
+  <h1 style="margin:0;padding:0;line-height:0;position:relative;z-index:2;">
+    <img class="logo logo-color rv" src="lp-assets/assets/logo.png" alt="とおりすがりの和紅茶 ― 指宿・鹿児島のイベント出店 和紅茶スタンド" style="--d:.1s" />
+    <img class="logo logo-cream rv" src="lp-assets/assets/logo-cream.png" alt="" style="--d:.1s" aria-hidden="true" />
+  </h1>
   <div class="rule rv" style="--d:.25s"><span class="l"></span><span class="t">和 紅 茶</span><span class="l"></span></div>
   <div class="catch rv" style="--d:.35s">休日のどこかで、<br/>ふらっと出現する和紅茶。</div>
   <div class="lead rv" style="--d:.5s">― 茶農家さんのこだわりを、一杯に ―</div>
@@ -278,7 +297,7 @@
     <div class="photo rv-scale">
       <img src="lp-assets/assets/cup.png" alt="とおりすがりの和紅茶 一杯と茶葉" />
     </div>
-    <div>
+    <div id="lpAboutText">
       <div class="en rv">ABOUT US</div>
       <h3 class="rv" style="--d:.06s">「とおりすがりの和紅茶」です。</h3>
       <p class="rv" style="--d:.12s">そんな和紅茶と、ふとした瞬間に出会える場所を作りたくて始めました。いつもそこにあるお店ではなく、イベントや出会った場所でだけ味わえる紅茶です。</p>
@@ -323,13 +342,14 @@
 
     <!-- 埋め込みウィジェットの表示先 -->
     <div class="ig-embed rv" id="igFeed">
-      <!-- ▼ ここに LightWidget / Behold / SnapWidget などで発行した埋め込みコード
-             （<iframe> または <script>+要素）を貼り付けてください。
-             貼り付けたら、下の .ig-fallback ブロックは削除してOKです。 -->
-      <div class="ig-fallback">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#9C7322" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="#9C7322" stroke="none"/></svg>
-        <p>最新の投稿は Instagram でご覧いただけます。</p>
-      </div>
+      <!-- Behold WIDGET -->
+      <behold-widget feed-id="9xsJUZyVHvLkfvbNsCin"></behold-widget>
+      <script>
+        (() => {
+          const d = document, s = d.createElement("script"); s.type = "module";
+          s.src = "https://w.behold.so/widget.js"; d.head.append(s);
+        })();
+      </script>
     </div>
 
     <div class="ig-cta rv" style="--d:.1s">
@@ -360,22 +380,28 @@
   const nav = document.getElementById('nav');
   addEventListener('scroll', () => nav.classList.toggle('solid', scrollY > 60), { passive: true });
 
-  // hero slideshow (crossfade)
-  (function(){
+  // hero slideshow (crossfade) — LP設定でスライドを差し替えたら再初期化できるよう関数化
+  let heroIntervalMs = 4800;
+  let heroTimer = null;
+  function startHero(){
     const slides = [...document.querySelectorAll('.hero-slides .hslide')];
     const dots = [...document.querySelectorAll('.hero .dots button')];
-    let i = 0, timer = null;
+    if (!slides.length) return;
+    let i = 0;
     function show(n){
       i = (n + slides.length) % slides.length;
       slides.forEach((s,k)=>s.classList.toggle('on', k===i));
       dots.forEach((d,k)=>d.classList.toggle('on', k===i));
     }
     function next(){ show(i+1); }
-    function play(){ stop(); timer = setInterval(next, 4800); }
-    function stop(){ if(timer) clearInterval(timer); }
+    function play(){ if(heroTimer) clearInterval(heroTimer); heroTimer = setInterval(next, heroIntervalMs); }
     dots.forEach((d,k)=>d.addEventListener('click', ()=>{ show(k); play(); }));
+    show(0);
     play();
-  })();
+  }
+  window.__setHeroInterval = (ms)=>{ if(ms>0) heroIntervalMs = ms; };
+  window.__startHero = startHero;
+  startHero();
 
   // parallax (translate decorative elements by scroll, respects reduced-motion)
   (function(){
@@ -483,6 +509,125 @@
     })
     .catch(function(){ showError(); });
 })();
+</script>
+
+<!-- LP設定（PC管理画面）を反映：/api/lp-config を取得して各セクションを差し替え。
+     取得失敗時は該当セクションに「データの取得に失敗しました」を表示する。
+     未設定の項目はAPIが既定値（現行の文言）を返すため、見た目はそのまま。 -->
+<script>
+(function(){
+  var API = 'https://navyllama5.sakura.ne.jp/toorisugari_tool/api/lp-config';
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];}); }
+  function nl2br(s){ return esc(s).replace(/\r?\n/g,'<br>'); }
+  var ERR = '<div style="color:#B0402E;font-weight:700;font-size:14px;letter-spacing:.04em;padding:10px 0;">データの取得に失敗しました</div>';
+  function q(sel){ return document.querySelector(sel); }
+
+  function setLogo(url){
+    document.querySelectorAll('#nav img, .hero h1 img.logo, footer img').forEach(function(img){ img.src = url; });
+  }
+  function rebuildSlides(urls){
+    var wrap = q('.hero-slides'), dots = q('.hero .dots');
+    if (wrap){
+      wrap.innerHTML = '';
+      urls.forEach(function(u,k){
+        var d = document.createElement('div');
+        d.className = 'hslide' + (k===0 ? ' on' : '');
+        d.style.backgroundImage = 'url("' + String(u).replace(/"/g,'%22') + '")';
+        wrap.appendChild(d);
+      });
+    }
+    if (dots){
+      dots.innerHTML = '';
+      urls.forEach(function(u,k){
+        var b = document.createElement('button');
+        if (k===0) b.className = 'on';
+        b.setAttribute('aria-label', 'スライド' + (k+1));
+        dots.appendChild(b);
+      });
+    }
+  }
+
+  function apply(cfg){
+    if (!cfg || typeof cfg !== 'object') { showErrors(); return; }
+    // 共通：ロゴ
+    try { if (cfg.common && cfg.common.logo) setLogo(cfg.common.logo); } catch(e){}
+    // トップ（ヒーロー）
+    try {
+      var h = cfg.hero || {};
+      var pc = (Array.isArray(h.slides) && h.slides.length) ? h.slides : null;
+      var sp = (Array.isArray(h.slides_sp) && h.slides_sp.length) ? h.slides_sp : null;
+      if (h.interval_sec && window.__setHeroInterval) window.__setHeroInterval(Number(h.interval_sec) * 1000);
+      if (pc || sp){
+        // カスタムスライドあり：画面幅でPC/SP画像を出し分け、切替時は再構築
+        var mq = window.matchMedia('(max-width:560px)');
+        var applySlides = function(){
+          var arr = (mq.matches && sp) ? sp : (pc || sp);
+          if (arr && arr.length){ rebuildSlides(arr); if (window.__startHero) window.__startHero(); }
+        };
+        applySlides();
+        if (mq.addEventListener) mq.addEventListener('change', applySlides);
+        else if (mq.addListener) mq.addListener(applySlides);
+      } else if (window.__startHero) {
+        // 既定スライドのまま（間隔だけ反映して再開）
+        window.__startHero();
+      }
+      if (h.title != null){ var c = q('.hero .catch'); if (c) c.innerHTML = nl2br(h.title); }
+      if (h.subtitle != null){ var l = q('.hero .lead'); if (l) l.textContent = h.subtitle; }
+    } catch(e){}
+    // コンセプト
+    try { if (cfg.concept && cfg.concept.text != null){ var h2 = q('#concept h2'); if (h2) h2.innerHTML = nl2br(cfg.concept.text); } } catch(e){}
+    // About Us
+    try {
+      var a = cfg.about || {};
+      if (a.image){ var im = q('#about .photo img'); if (im) im.src = a.image; }
+      if (a.heading != null){ var h3 = q('#about h3'); if (h3) h3.textContent = a.heading; }
+      if (a.text != null){
+        var box = q('#lpAboutText');
+        if (box){
+          box.querySelectorAll('p').forEach(function(p){ p.remove(); });
+          String(a.text).split(/\r?\n\s*\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(para){
+            var p = document.createElement('p'); p.innerHTML = nl2br(para); box.appendChild(p);
+          });
+        }
+      }
+    } catch(e){}
+    // フッター
+    try { if (cfg.footer && cfg.footer.text != null){ var m = q('footer .msg'); if (m) m.innerHTML = nl2br(cfg.footer.text); } } catch(e){}
+  }
+
+  // API通信が失敗した時：各セクションの表示を「データの取得に失敗しました」に。
+  // 画像・ロゴはLP同梱の既定を残す（差し替えられないため）。
+  function showErrors(){
+    var c = q('.hero .catch'); if (c) c.innerHTML = ERR;
+    var l = q('.hero .lead'); if (l) l.textContent = '';
+    var h2 = q('#concept h2'); if (h2) h2.innerHTML = ERR;
+    var box = q('#lpAboutText'); if (box){ box.querySelectorAll('h3,p').forEach(function(el){ el.remove(); }); box.insertAdjacentHTML('beforeend', ERR); }
+    var m = q('footer .msg'); if (m) m.innerHTML = ERR;
+  }
+
+  fetch(API, { headers: { 'Accept': 'application/json' } })
+    .then(function(r){ if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+    .then(apply)
+    .catch(showErrors);
+})();
+</script>
+
+<!-- 構造化データ（検索エンジン向け） -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "とおりすがりの和紅茶",
+  "description": "鹿児島・指宿のイベントやマルシェに出現する和紅茶（国産紅茶）スタンド。茶農家が育てた和紅茶を一杯から提供します。",
+  "url": "https://toorisugari-wakoucha.jp/",
+  "logo": "https://toorisugari-wakoucha.jp/lp-assets/assets/logo.png",
+  "image": "https://toorisugari-wakoucha.jp/lp-assets/assets/hero-shop.png",
+  "areaServed": [
+    { "@type": "City", "name": "指宿市" },
+    { "@type": "AdministrativeArea", "name": "鹿児島県" }
+  ],
+  "sameAs": ["https://www.instagram.com/toorisugari_wakoucha/"]
+}
 </script>
 </body>
 </html>
