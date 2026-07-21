@@ -9,7 +9,7 @@ const TABS: { k: Tab; label: string }[] = [
   { k: 'sales', label: '売上管理' },
   { k: 'expense', label: '経費管理' },
   { k: 'profit', label: '損益管理' },
-  { k: 'analysis', label: '損益分析' },
+  { k: 'analysis', label: '損益分岐分析' },
 ];
 
 export function SalesAdminPage() {

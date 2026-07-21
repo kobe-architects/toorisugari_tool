@@ -522,50 +522,45 @@ export interface CustomerAnalyticsDTO {
   by_product: ProductSegmentDTO[];
 }
 
-// ---- 損益分析 ----
-export interface ProfitCategoryRow {
-  label: string;
-  sales: number;
-  cost_auto: number; // 自動計上原価（茶葉・物販）
-  gross: number;
-  margin: number | null;
-  share: number; // 売上構成比(%)
-}
-
-export interface ProfitProductRow {
+// ---- 損益分岐分析 ----
+/** 商品別の「あと何杯」情報。 */
+export interface BreakEvenProductRow {
+  id: number;
   name: string;
   category: string;
-  qty: number;
-  sales: number;
-  cost_auto: number;
-  gross: number;
-  margin: number | null;
+  price: number;
+  unit_var_cost: number; // 1杯あたり変動費（茶葉g×平均g単価＋物販原価）
+  unit_cm: number; // 1杯あたり貢献利益 = 価格 − 変動費
+  sold_qty: number; // 当月の販売数
+  cups_to_break_even: number | null; // 分岐点まであと何杯（0=達成済 / null=算出不可）
+  cups_to_target: number | null; // 予算まであと何杯（予算未登録ならnull）
 }
 
-export interface ProfitExpenseRow {
-  category: string; // 名目
-  type: 'cost' | 'expense';
-  amount: number;
-}
-
-export interface ProfitAnalysisDTO {
+/** 月次の損益分岐分析。変動費=原価（自動＋手入力）／固定費=経費（出店料含む）。 */
+export interface BreakEvenDTO {
   year: number;
+  month: number;
   available_years: number[];
-  summary: {
-    sales: number;
-    cost: number;
-    cost_auto: number;
-    cost_manual: number;
-    gross: number;
-    expense: number;
-    operating: number;
-    gross_margin: number | null;
-    operating_margin: number | null;
-  };
-  monthly: ProfitRow[];
-  categories: ProfitCategoryRow[];
-  products: ProfitProductRow[];
-  expenses: ProfitExpenseRow[];
+  sales: number;
+  var_cost: number;
+  var_cost_auto: number;
+  var_cost_manual: number;
+  fixed_cost: number;
+  contribution: number; // 貢献利益 = 売上 − 変動費
+  cm_ratio: number | null; // 貢献利益率(%)
+  break_even_sales: number | null; // 損益分岐点売上高
+  break_even_achievement: number | null; // 達成率(%)
+  uncovered: number; // 固定費の未回収額（<=0で黒字）
+  operating: number; // 営業利益
+  target_sales: number | null; // 売上予算
+  target_achievement: number | null; // 予算達成率(%)
+  products: BreakEvenProductRow[];
+}
+
+export interface BudgetSaveResult {
+  year: number;
+  month: number;
+  target_sales: number | null;
 }
 
 // ---- 経費管理 ----

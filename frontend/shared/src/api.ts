@@ -17,7 +17,8 @@ import type {
   EventOptionDTO,
   EventSelection,
   EventsResponse,
-  ProfitAnalysisDTO,
+  BreakEvenDTO,
+  BudgetSaveResult,
   MaterialDTO,
   MaterialInput,
   MaterialPurchaseDTO,
@@ -248,7 +249,11 @@ export const api = {
     customers: () => request<CustomerAnalyticsDTO>('GET', '/analytics/customers'),
     profit: (year: number, category?: string) =>
       request<ProfitDTO>('GET', `/analytics/profit?year=${year}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
-    profitAnalysis: (year: number) => request<ProfitAnalysisDTO>('GET', `/analytics/profit-analysis?year=${year}`),
+    /** 損益分岐分析（月次）。 */
+    breakEven: (year: number, month: number) => request<BreakEvenDTO>('GET', `/analytics/break-even?year=${year}&month=${month}`),
+    /** 月次売上予算の登録・更新（0で削除）。 */
+    saveBudget: (year: number, month: number, targetSales: number) =>
+      request<BudgetSaveResult>('PUT', '/analytics/budget', { year, month, target_sales: targetSales }),
     /** 指定年月の日別天気（伝票のある日だけ）。 */
     weather: (year: number, month: number) => request<WeatherMonthDTO>('GET', `/analytics/weather?year=${year}&month=${month}`),
     /** 天気の手動登録・更新（1日分）。 */

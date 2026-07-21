@@ -137,7 +137,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sales.csv', [AnalyticsController::class, 'salesCsv']);
         Route::get('/customers', [AnalyticsController::class, 'customers']);
         Route::get('/profit', [AnalyticsController::class, 'profit']);
-        Route::get('/profit-analysis', [AnalyticsController::class, 'profitAnalysis']);
+        Route::get('/break-even', [AnalyticsController::class, 'breakEven']);
+        Route::put('/budget', [AnalyticsController::class, 'saveBudget']);
         Route::get('/weather', [WeatherController::class, 'daily']);
         Route::post('/weather', [WeatherController::class, 'saveOverride']);
         Route::delete('/weather/{date}', [WeatherController::class, 'deleteOverride']);

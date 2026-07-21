@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -176,100 +177,132 @@ class AnalyticsController extends Controller
     }
 
     /**
-     * 損益分析：年間サマリー・月次推移に加え、カテゴリ別/商品別の粗利と経費内訳を返す。
-     * 商品別・カテゴリ別の原価は販売時の自動計上分（茶葉・物販）。
+     * 損益分岐分析（月次）。
+     * - 変動費 = 販売時の自動計上原価（茶葉・物販）＋ 手入力の原価
+     * - 固定費 = 経費（イベント出店料などの自動計上を含む）
+     * - 損益分岐点売上高 = 固定費 ÷ 貢献利益率（= 1 − 変動費率）
+     * - 商品別に「分岐点／予算まであと何杯」を返す（1杯あたり貢献利益 = 価格 − 単品変動費）
      */
-    public function profitAnalysis(Request $request)
+    public function breakEven(Request $request)
     {
-        $request->query->remove('category'); // 全体の損益をベースにする
-        $overall = $this->profit($request);
-        $year = $overall['year'];
+        $year = (int) ($request->query('year') ?: now()->year);
+        $month = max(1, min(12, (int) ($request->query('month') ?: now()->month)));
 
-        $start = Carbon::create($year, 1, 1)->startOfDay();
-        $end = Carbon::create($year, 12, 31)->endOfDay();
-        $orders = $this->ordersIn($start, $end);
-        $items = OrderItem::with('product.category')->whereIn('order_id', $orders->pluck('id'))->get();
+        $start = Carbon::create($year, $month, 1)->startOfMonth();
+        $end = $start->copy()->endOfMonth();
 
-        $cons = \App\Models\MaterialConsumption::with('orderItem.product.category')
-            ->whereBetween('consumed_on', [$start->toDateString(), $end->toDateString()])
-            ->get();
-        $consByProduct = $cons->groupBy(fn ($c) => optional($c->orderItem)->product_id ?? 0)->map(fn ($g) => (float) $g->sum('amount'));
-        $consByCategory = $cons->groupBy(fn ($c) => optional(optional(optional($c->orderItem)->product)->category)->label ?? 'その他')->map(fn ($g) => (float) $g->sum('amount'));
+        $orders = $this->ordersIn($start->copy()->startOfDay(), $end->copy()->endOfDay());
+        $sales = (int) $orders->sum('total');
 
-        $totalSales = (int) $overall['total_sales'];
+        // 変動費：自動計上（茶葉・物販）＋手入力原価。固定費：経費（出店料含む）
+        $varAuto = (int) round((float) \App\Models\MaterialConsumption::whereBetween('consumed_on', [$start->toDateString(), $end->toDateString()])->sum('amount'));
+        $monthExp = \App\Models\Expense::where('year', $year)->where('month', $month)->get(['type', 'amount']);
+        $varManual = (int) $monthExp->where('type', 'cost')->sum('amount');
+        $varCost = $varAuto + $varManual;
+        $fixedCost = (int) $monthExp->where('type', 'expense')->sum('amount');
 
-        // カテゴリ別 粗利（原価は自動計上分）
-        $categories = $items
-            ->groupBy(fn (OrderItem $i) => optional(optional($i->product)->category)->label ?? 'その他')
-            ->map(function ($g, $label) use ($consByCategory, $totalSales) {
-                $sales = (int) $g->sum('line_total');
-                $cost = (int) round($consByCategory[$label] ?? 0);
-                $gross = $sales - $cost;
-                return [
-                    'label' => $label,
-                    'sales' => $sales,
-                    'cost_auto' => $cost,
-                    'gross' => $gross,
-                    'margin' => $sales ? round($gross / $sales * 100, 1) : null,
-                    'share' => $totalSales ? round($sales / $totalSales * 100) : 0,
-                ];
-            })
-            ->sortByDesc('sales')
-            ->values()
-            ->all();
+        $contribution = $sales - $varCost;                                   // 貢献利益
+        $cmRatio = $sales > 0 ? $contribution / $sales : null;               // 貢献利益率
+        $breakEvenSales = ($cmRatio !== null && $cmRatio > 0)
+            ? (int) ceil($fixedCost / $cmRatio)
+            : null;                                                          // 損益分岐点売上高
+        $uncovered = $fixedCost - $contribution;                             // 固定費の未回収額（<=0で黒字）
+        $operating = $contribution - $fixedCost;
 
-        // 商品別 粗利ランキング（原価は自動計上分）
-        $products = $items
-            ->filter(fn (OrderItem $i) => $i->product_id)
+        $budget = \App\Models\Budget::where('year', $year)->where('month', $month)->first();
+        $target = $budget?->target_sales;
+
+        // 月内の販売数（商品別）
+        $soldByProduct = OrderItem::whereIn('order_id', $orders->pluck('id'))
+            ->get(['product_id', 'qty'])
             ->groupBy('product_id')
-            ->map(function ($g) use ($consByProduct) {
-                $first = $g->first();
-                $p = $first->product;
-                $sales = (int) $g->sum('line_total');
-                $cost = (int) round($consByProduct[$first->product_id] ?? 0);
-                $gross = $sales - $cost;
+            ->map(fn ($g) => (int) $g->sum('qty'));
+
+        // 商品別：1杯あたり変動費（茶葉g×現在の平均g単価＋物販原価）と「あと何杯」
+        $products = Product::with(['category:id,slug,label', 'materials.material:id,avg_unit_price'])
+            ->where('is_visible', true)
+            ->orderBy('category_id')
+            ->orderBy('sort_order')
+            ->get()
+            ->filter(fn (Product $p) => $p->price > 0)
+            ->map(function (Product $p) use ($uncovered, $sales, $target, $soldByProduct) {
+                $unitVar = (float) $p->materials->sum(fn ($pm) => (float) $pm->grams * (float) ($pm->material->avg_unit_price ?? 0));
+                $unitVar += (float) ($p->cost_price ?? 0);
+                $unitVar = round($unitVar, 1);
+                $unitCm = $p->price - $unitVar; // 1杯あたり貢献利益
+
+                // 分岐点まで：未回収固定費 ÷ 1杯あたり貢献利益
+                $cupsBreakEven = null;
+                if ($uncovered <= 0) {
+                    $cupsBreakEven = 0; // 達成済み
+                } elseif ($unitCm > 0) {
+                    $cupsBreakEven = (int) ceil($uncovered / $unitCm);
+                }
+
+                // 予算（売上目標）まで：残り売上 ÷ 価格
+                $cupsTarget = null;
+                if ($target !== null) {
+                    $remain = $target - $sales;
+                    $cupsTarget = $remain <= 0 ? 0 : (int) ceil($remain / $p->price);
+                }
+
                 return [
-                    'name' => $p?->name ?? $first->name,
-                    'category' => $p?->category?->label ?? 'その他',
-                    'qty' => (int) $g->sum('qty'),
-                    'sales' => $sales,
-                    'cost_auto' => $cost,
-                    'gross' => $gross,
-                    'margin' => $sales ? round($gross / $sales * 100, 1) : null,
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'category' => $p->category?->label ?? 'その他',
+                    'price' => $p->price,
+                    'unit_var_cost' => $unitVar,
+                    'unit_cm' => round($unitCm, 1),
+                    'sold_qty' => $soldByProduct[$p->id] ?? 0,
+                    'cups_to_break_even' => $cupsBreakEven,
+                    'cups_to_target' => $cupsTarget,
                 ];
             })
-            ->sortByDesc('gross')
-            ->values()
-            ->take(20)
-            ->all();
-
-        // 経費内訳（手入力＋出店料などの自動経費行を名目ごとに合算）
-        $expenses = \App\Models\Expense::where('year', $year)->get(['category', 'type', 'amount'])
-            ->groupBy('category')
-            ->map(fn ($g, $name) => ['category' => $name, 'type' => $g->first()->type, 'amount' => (int) $g->sum('amount')])
-            ->sortByDesc('amount')
             ->values()
             ->all();
 
         return [
             'year' => $year,
-            'available_years' => $overall['available_years'],
-            'summary' => [
-                'sales' => $overall['total_sales'],
-                'cost' => $overall['total_cost'],
-                'cost_auto' => $overall['total_cost_auto'],
-                'cost_manual' => $overall['total_cost_manual'],
-                'gross' => $overall['total_gross'],
-                'expense' => $overall['total_expense'],
-                'operating' => $overall['total_operating'],
-                'gross_margin' => $overall['gross_margin'],
-                'operating_margin' => $overall['operating_margin'],
-            ],
-            'monthly' => $overall['rows'],
-            'categories' => $categories,
+            'month' => $month,
+            'available_years' => $this->availableYears(),
+            'sales' => $sales,
+            'var_cost' => $varCost,
+            'var_cost_auto' => $varAuto,
+            'var_cost_manual' => $varManual,
+            'fixed_cost' => $fixedCost,
+            'contribution' => $contribution,
+            'cm_ratio' => $cmRatio !== null ? round($cmRatio * 100, 1) : null,
+            'break_even_sales' => $breakEvenSales,
+            'break_even_achievement' => $breakEvenSales ? round($sales / $breakEvenSales * 100) : null,
+            'uncovered' => $uncovered,
+            'operating' => $operating,
+            'target_sales' => $target,
+            'target_achievement' => $target ? round($sales / $target * 100) : null,
             'products' => $products,
-            'expenses' => $expenses,
         ];
+    }
+
+    /** 月次の売上予算を登録・更新（0円で削除）。 */
+    public function saveBudget(Request $request)
+    {
+        $data = $request->validate([
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'month' => ['required', 'integer', 'min:1', 'max:12'],
+            'target_sales' => ['required', 'integer', 'min:0'],
+        ]);
+
+        if ($data['target_sales'] <= 0) {
+            \App\Models\Budget::where('year', $data['year'])->where('month', $data['month'])->delete();
+
+            return ['year' => $data['year'], 'month' => $data['month'], 'target_sales' => null];
+        }
+
+        $budget = \App\Models\Budget::updateOrCreate(
+            ['year' => $data['year'], 'month' => $data['month']],
+            ['target_sales' => $data['target_sales']],
+        );
+
+        return ['year' => $budget->year, 'month' => $budget->month, 'target_sales' => $budget->target_sales];
     }
 
     /**
