@@ -67,7 +67,7 @@ class AnalyticsController extends Controller
                 'peak' => $peak,
             ],
             'categories' => $this->categoryComposition($items, $total),
-            'products' => $this->productRanking($items, $total),
+            'products' => $this->productRanking($items),
             'by_source' => $bySource,
         ];
     }
@@ -313,18 +313,38 @@ class AnalyticsController extends Controller
         return $out;
     }
 
-    private function productRanking(Collection $items, int $totalSales, int $limit = 8): array
+    /** 商品別売上ランキング（カテゴリ別にグループ化。構成比はカテゴリ内比率）。 */
+    private function productRanking(Collection $items, int $limit = 8): array
     {
-        return $items->groupBy('name')
-            ->map(fn ($g) => [
-                'name' => $g->first()->name,
-                'qty' => (int) $g->sum('qty'),
-                'amt' => (int) $g->sum('line_total'),
-            ])
-            ->sortByDesc('amt')
+        return $items
+            ->groupBy(fn (OrderItem $i) => optional(optional($i->product)->category)->id ?? 0)
+            ->map(function (Collection $g) use ($limit) {
+                $cat = optional($g->first()->product)->category;
+                $catTotal = (int) $g->sum('line_total');
+                $rows = $g->groupBy('name')
+                    ->map(fn ($p) => [
+                        'name' => $p->first()->name,
+                        'qty' => (int) $p->sum('qty'),
+                        'amt' => (int) $p->sum('line_total'),
+                    ])
+                    ->sortByDesc('amt')
+                    ->values()
+                    ->take($limit)
+                    ->map(fn ($r) => [...$r, 'pct' => $catTotal ? round($r['amt'] / $catTotal * 100, 1) : 0])
+                    ->values()
+                    ->all();
+
+                return [
+                    'key' => $cat->slug ?? 'other',
+                    'label' => $cat->label ?? 'その他',
+                    'total' => $catTotal,
+                    'sort' => $cat->sort_order ?? PHP_INT_MAX,
+                    'rows' => $rows,
+                ];
+            })
+            ->sortBy('sort')
             ->values()
-            ->take($limit)
-            ->map(fn ($r) => [...$r, 'pct' => $totalSales ? round($r['amt'] / $totalSales * 100, 1) : 0])
+            ->map(fn (array $c) => collect($c)->except('sort')->all())
             ->all();
     }
 }

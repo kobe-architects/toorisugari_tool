@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@shared/api';
-import type { AdminProductDTO } from '@shared/types';
+import type { AdminProductDTO, CategoryLiteDTO } from '@shared/types';
 import { ProductIcon } from '@shared/icons';
 import { Yen, Stamp, SafeTop } from '../../components/common';
 
 export function ProductList() {
   const nav = useNavigate();
   const [products, setProducts] = useState<AdminProductDTO[]>([]);
+  const [catList, setCatList] = useState<CategoryLiteDTO[]>([]);
   const [filter, setFilter] = useState<string>('all');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -18,15 +19,12 @@ export function ProductList() {
       .then(setProducts)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   };
-  useEffect(load, []);
+  useEffect(() => {
+    api.admin.categories().then(setCatList).catch(() => {});
+    load();
+  }, []);
 
-  const cats = [
-    { slug: 'all', label: 'すべて' },
-    { slug: 'drink', label: 'ドリンク' },
-    { slug: 'leaf', label: '茶葉' },
-    { slug: 'sweet', label: 'お菓子' },
-    { slug: 'set', label: 'セット' },
-  ];
+  const cats = [{ slug: 'all', label: 'すべて' }, ...catList.map((c) => ({ slug: c.slug, label: c.label }))];
 
   const rows = products.filter((p) => filter === 'all' || p.category?.slug === filter);
 

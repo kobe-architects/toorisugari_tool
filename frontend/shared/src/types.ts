@@ -370,7 +370,15 @@ export interface ProductRank {
   name: string;
   qty: number;
   amt: number;
-  pct: number;
+  pct: number; // カテゴリ内構成比
+}
+
+/** カテゴリごとの商品別ランキング */
+export interface ProductRankGroup {
+  key: string; // カテゴリslug（商品未紐付けは other）
+  label: string;
+  total: number; // カテゴリ小計
+  rows: ProductRank[];
 }
 
 export interface TrendRow {
@@ -389,7 +397,7 @@ export interface SalesAnalyticsDTO {
   rows: TrendRow[];
   hours: { labels: string[]; data: number[]; peak: number };
   categories: CategorySlice[];
-  products: ProductRank[];
+  products: ProductRankGroup[];
   by_source: { key: OrderSource; label: string; amount: number; qty: number }[];
 }
 

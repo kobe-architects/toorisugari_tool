@@ -42,6 +42,19 @@ export function RegisterView() {
     setProducts((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
   };
 
+  // カテゴリ別にテーブルを分ける（商品ゼロのカテゴリも表示。カテゴリ未紐付けは「その他」）
+  const groups = useMemo(() => {
+    const byCat = new Map<number, AdminProductDTO[]>();
+    const known = new Set(cats.map((c) => c.id));
+    for (const p of products) {
+      const key = known.has(p.category_id) ? p.category_id : 0;
+      byCat.set(key, [...(byCat.get(key) ?? []), p]);
+    }
+    const list = cats.map((c) => ({ key: c.id, label: c.label, items: byCat.get(c.id) ?? [] }));
+    if (byCat.has(0)) list.push({ key: 0, label: 'その他', items: byCat.get(0)! });
+    return list;
+  }, [products, cats]);
+
   return (
     <>
       <Panel
@@ -50,32 +63,44 @@ export function RegisterView() {
         right={<button className="btn btn-accent" style={{ padding: '9px 16px', fontSize: 13.5, cursor: 'pointer' }} onClick={() => setEditing('new')}>＋ 商品を追加</button>}
       >
         {error && <div style={{ color: 'var(--accent)', fontSize: 13, marginBottom: 10 }}>{error}</div>}
-        <div style={{ display: 'flex', fontSize: 10.5, color: 'var(--ink-mute)', fontWeight: 700, letterSpacing: '0.1em', padding: '0 0 10px' }}>
-          <span style={{ width: 56 }} />
-          <span style={{ flex: 1 }}>商品名</span>
-          <span style={{ width: 110 }}>カテゴリ</span>
-          <span style={{ width: 90, textAlign: 'right' }}>価格</span>
-          <span style={{ width: 110, textAlign: 'center' }}>販売状態</span>
-          <span style={{ width: 70, textAlign: 'center' }}>表示</span>
-          <span style={{ width: 70 }} />
-        </div>
-        {products.map((p) => (
-          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderTop: '1px dashed var(--line-2)', opacity: p.is_sold_out ? 0.72 : 1 }}>
-            <Thumb p={p} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>{p.sub}</div>
+        {groups.map((g, gi) => (
+          <div key={g.key} style={{ marginTop: gi === 0 ? 0 : 26 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingBottom: 10, borderBottom: '1.5px solid var(--line)' }}>
+              <span style={{ fontFamily: 'var(--mincho)', fontWeight: 800, fontSize: 16 }}>{g.label}</span>
+              <span style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>{g.items.length}品</span>
             </div>
-            <span style={{ width: 110, fontSize: 12.5, color: 'var(--ink-soft)' }}>{p.category?.label}</span>
-            <span style={{ width: 90, textAlign: 'right' }} className="price"><span className="yen">¥</span>{yen(p.price)}</span>
-            <span style={{ width: 110, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-              <button className={'switch' + (p.is_sold_out ? '' : ' on')} style={{ cursor: 'pointer' }} onClick={() => toggleSold(p)}><span className="knob" /></button>
-              <span style={{ fontSize: 10, fontWeight: 700, color: p.is_sold_out ? 'var(--accent)' : 'var(--leaf)' }}>{p.is_sold_out ? '売切' : '販売中'}</span>
-            </span>
-            <span style={{ width: 70, textAlign: 'center', fontSize: 11.5, color: p.is_visible ? 'var(--ink-soft)' : 'var(--ink-mute)' }}>{p.is_visible ? '表示' : '非表示'}</span>
-            <span style={{ width: 70, textAlign: 'right' }}>
-              <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12.5, cursor: 'pointer' }} onClick={() => setEditing(p)}>編集</button>
-            </span>
+            {g.items.length === 0 ? (
+              <div style={{ padding: '14px 0', fontSize: 12.5, color: 'var(--ink-mute)' }}>商品がありません</div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', fontSize: 10.5, color: 'var(--ink-mute)', fontWeight: 700, letterSpacing: '0.1em', padding: '10px 0' }}>
+                  <span style={{ width: 56 }} />
+                  <span style={{ flex: 1 }}>商品名</span>
+                  <span style={{ width: 90, textAlign: 'right' }}>価格</span>
+                  <span style={{ width: 110, textAlign: 'center' }}>販売状態</span>
+                  <span style={{ width: 70, textAlign: 'center' }}>表示</span>
+                  <span style={{ width: 70 }} />
+                </div>
+                {g.items.map((p) => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderTop: '1px dashed var(--line-2)', opacity: p.is_sold_out ? 0.72 : 1 }}>
+                    <Thumb p={p} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>{p.sub}</div>
+                    </div>
+                    <span style={{ width: 90, textAlign: 'right' }} className="price"><span className="yen">¥</span>{yen(p.price)}</span>
+                    <span style={{ width: 110, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                      <button className={'switch' + (p.is_sold_out ? '' : ' on')} style={{ cursor: 'pointer' }} onClick={() => toggleSold(p)}><span className="knob" /></button>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: p.is_sold_out ? 'var(--accent)' : 'var(--leaf)' }}>{p.is_sold_out ? '売切' : '販売中'}</span>
+                    </span>
+                    <span style={{ width: 70, textAlign: 'center', fontSize: 11.5, color: p.is_visible ? 'var(--ink-soft)' : 'var(--ink-mute)' }}>{p.is_visible ? '表示' : '非表示'}</span>
+                    <span style={{ width: 70, textAlign: 'right' }}>
+                      <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12.5, cursor: 'pointer' }} onClick={() => setEditing(p)}>編集</button>
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         ))}
       </Panel>

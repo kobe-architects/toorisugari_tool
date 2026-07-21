@@ -170,12 +170,25 @@ export function SalesView() {
         </Panel>
       )}
 
-      {/* 商品別ランキング */}
-      <Panel title="商品別 売上ランキング" sub="選択期間" right={<button className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 12.5, cursor: 'pointer' }} onClick={downloadCsv}>CSV出力</button>}>
+      {/* 商品別ランキング（カテゴリ別） */}
+      <Panel title="商品別 売上ランキング" sub="選択期間・カテゴリ別（構成比はカテゴリ内）" right={<button className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 12.5, cursor: 'pointer' }} onClick={downloadCsv}>CSV出力</button>}>
         {!data || data.products.length === 0 ? (
           <div style={{ padding: 30, textAlign: 'center', color: 'var(--ink-mute)' }}>会計データがありません</div>
         ) : (
-          <RankTable rows={data.products} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
+            {data.products.map((g) => (
+              <div key={g.key}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingBottom: 10, marginBottom: 10, borderBottom: '1.5px solid var(--line)' }}>
+                  <span style={{ fontFamily: 'var(--mincho)', fontWeight: 800, fontSize: 16 }}>{g.label}</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>{g.rows.length}品</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--ink-mute)' }}>
+                    小計 <span className="price" style={{ fontSize: 14, color: 'var(--ink)' }}><span className="yen">¥</span>{yen(g.total)}</span>
+                  </span>
+                </div>
+                <RankTable rows={g.rows} />
+              </div>
+            ))}
+          </div>
         )}
       </Panel>
 

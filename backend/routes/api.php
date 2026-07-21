@@ -37,6 +37,8 @@ Route::get('/products', function () {
         ->orderBy('sort_order')
         ->with(['products' => fn ($q) => $q->where('is_visible', true)->orderBy('sort_order')])
         ->get()
+        ->filter(fn ($cat) => $cat->products->isNotEmpty()) // 商品のないカテゴリはタブを出さない
+        ->values()
         ->map(fn ($cat) => [
             'id' => $cat->slug,
             'label' => $cat->label,

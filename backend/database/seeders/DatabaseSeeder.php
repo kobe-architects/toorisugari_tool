@@ -61,6 +61,7 @@ class DatabaseSeeder extends Seeder
         $categories = [
             ['slug' => 'drink',   'label' => 'ドリンク', 'sub' => 'Drink'],
             ['slug' => 'tasting', 'label' => '飲み比べ', 'sub' => 'Tasting'],
+            ['slug' => 'goods',   'label' => '物販',     'sub' => 'Goods'],
         ];
         $catId = [];
         foreach ($categories as $i => $c) {
