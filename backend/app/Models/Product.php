@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'category_id', 'name', 'sub', 'price', 'tax_rate',
+    'category_id', 'name', 'sub', 'price', 'cost_price', 'tax_rate',
     'icon', 'image_path', 'stamp', 'is_sold_out', 'is_visible', 'has_temperature', 'has_order_source', 'show_on_lp', 'options', 'sort_order',
 ])]
 class Product extends Model
@@ -28,6 +28,7 @@ class Product extends Model
     {
         return [
             'price' => 'integer',
+            'cost_price' => 'integer',
             'tax_rate' => 'decimal:2',
             'is_sold_out' => 'boolean',
             'is_visible' => 'boolean',
@@ -42,5 +43,11 @@ class Product extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /** 使用茶葉（1杯あたりg）。 */
+    public function materials(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ProductMaterial::class);
     }
 }

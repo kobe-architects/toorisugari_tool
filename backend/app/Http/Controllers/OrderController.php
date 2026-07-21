@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Services\MaterialLedger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -50,6 +51,9 @@ class OrderController extends Controller
             foreach ($lines as $line) {
                 $order->items()->create($line);
             }
+
+            // 茶葉の消費計上（在庫減算＋販売時点の平均g単価で自動原価）
+            MaterialLedger::apply($order);
 
             return $order;
         });
@@ -157,19 +161,27 @@ class OrderController extends Controller
             ]);
 
             // 明細は全削除して作り直す（数量・温度・経路・客層・オプションの増減に対応）。
+            // 茶葉の消費も戻してから再計上する（再計上は現在の平均g単価）。
+            MaterialLedger::reverse($order);
             $order->items()->delete();
             foreach ($lines as $line) {
                 $order->items()->create($line);
+            }
+            if ($order->status === 'completed') {
+                MaterialLedger::apply($order->fresh('items'));
             }
         });
 
         return $this->presentDetail($order->fresh(['items', 'staff:id,name']));
     }
 
-    /** 伝票取消（論理削除）。status を voided にする。冪等。 */
+    /** 伝票取消（論理削除）。status を voided にし、茶葉の消費を戻す。冪等。 */
     public function void(Order $order)
     {
-        $order->update(['status' => 'voided']);
+        DB::transaction(function () use ($order) {
+            MaterialLedger::reverse($order); // 消費記録は削除済みなら何もしない
+            $order->update(['status' => 'voided']);
+        });
 
         return $this->presentDetail($order->fresh(['items', 'staff:id,name']));
     }

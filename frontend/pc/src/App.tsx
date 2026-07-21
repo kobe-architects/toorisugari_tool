@@ -7,6 +7,8 @@ import { SalesAdminPage } from './views/SalesAdminPage';
 import { CustomerView } from './views/CustomerView';
 import { OrderView } from './views/OrderView';
 import { RegisterView } from './views/RegisterView';
+import { InventoryView } from './views/InventoryView';
+import { EventsView } from './views/EventsView';
 import { LpView } from './views/LpView';
 import { SystemSettingsView } from './views/SystemSettingsView';
 
@@ -26,9 +28,11 @@ export function App() {
           <Route path="/login" element={<Login />} />
           <Route element={<Guard><Layout /></Guard>}>
             <Route path="/" element={<SalesAdminPage />} />
+            <Route path="/events" element={<EventsView />} />
             <Route path="/customer" element={<CustomerView />} />
             <Route path="/orders" element={<OrderView />} />
             <Route path="/register" element={<RegisterView />} />
+            <Route path="/inventory" element={<InventoryView />} />
             <Route path="/lp" element={<LpView />} />
             <Route path="/system" element={<SystemSettingsView />} />
           </Route>

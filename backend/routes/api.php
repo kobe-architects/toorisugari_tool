@@ -3,10 +3,12 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GeoController;
 use App\Http\Controllers\LpConfigController;
+use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\OperatingDayController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\SettingsController;
@@ -82,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/geo/search', [GeoController::class, 'search']);
     Route::get('/geo/reverse', [GeoController::class, 'reverse']);
     Route::get('/operating-day/today', [OperatingDayController::class, 'today']);
+    Route::get('/operating-day/event-options', [OperatingDayController::class, 'eventOptions']);
     Route::post('/operating-day', [OperatingDayController::class, 'store']);
 
     // ---- 管理（オーナー専用） ----
@@ -94,6 +97,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/products/{product}', [AdminController::class, 'destroyProduct']);
         Route::post('/products/{product}/image', [AdminController::class, 'uploadImage']);
         Route::delete('/products/{product}/image', [AdminController::class, 'deleteImage']);
+
+        // イベント管理（イベント別の売上・損益）
+        Route::get('/events', [EventController::class, 'index']);
+        Route::post('/events', [EventController::class, 'store']);
+        Route::patch('/events/{event}', [EventController::class, 'update']);
+        Route::delete('/events/{event}', [EventController::class, 'destroy']);
+
+        // 茶葉（在庫・移動平均単価）と仕入
+        Route::get('/materials', [MaterialController::class, 'index']);
+        Route::post('/materials', [MaterialController::class, 'store']);
+        Route::patch('/materials/{material}', [MaterialController::class, 'update']);
+        Route::delete('/materials/{material}', [MaterialController::class, 'destroy']);
+        Route::get('/materials/{material}/purchases', [MaterialController::class, 'purchases']);
+        Route::post('/material-purchases', [MaterialController::class, 'storePurchase']);
+        Route::delete('/material-purchases/{purchase}', [MaterialController::class, 'destroyPurchase']);
 
         // レジ設定の更新
         Route::patch('/settings', [SettingsController::class, 'update']);
@@ -119,6 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sales.csv', [AnalyticsController::class, 'salesCsv']);
         Route::get('/customers', [AnalyticsController::class, 'customers']);
         Route::get('/profit', [AnalyticsController::class, 'profit']);
+        Route::get('/profit-analysis', [AnalyticsController::class, 'profitAnalysis']);
         Route::get('/weather', [WeatherController::class, 'daily']);
         Route::post('/weather', [WeatherController::class, 'saveOverride']);
         Route::delete('/weather/{date}', [WeatherController::class, 'deleteOverride']);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@shared/api';
-import type { Period, SalesAnalyticsDTO, WeatherDayDTO, WeatherIconKind } from '@shared/types';
+import type { CategoryLiteDTO, Period, SalesAnalyticsDTO, WeatherDayDTO, WeatherIconKind } from '@shared/types';
 import { AreaChart, ColumnChart, Donut, RankTable } from '../charts';
 import { Panel, Legend } from '../components/Panel';
 import { WeatherIcon } from '../components/WeatherIcon';
@@ -31,18 +31,24 @@ export function SalesView() {
   const [period, setPeriod] = useState<Period>('day');
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [cats, setCats] = useState<CategoryLiteDTO[]>([]);
+  const [category, setCategory] = useState('all'); // カテゴリslug（all=全体）
   const [data, setData] = useState<SalesAnalyticsDTO | null>(null);
   const [weather, setWeather] = useState<Record<number, WeatherDayDTO>>({});
   const [editDay, setEditDay] = useState<number | null>(null); // 天気を手動編集中の日
   const [error, setError] = useState('');
 
   useEffect(() => {
+    api.admin.categories().then(setCats).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setData(null);
     api.analytics
-      .sales(period, { year, month })
+      .sales(period, { year, month, category: category === 'all' ? undefined : category })
       .then(setData)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [period, year, month]);
+  }, [period, year, month, category]);
 
   // 日次のみ、伝票のある日の天気を取得（自動＋手動登録をマージ済み）。
   const loadWeather = useCallback(() => {
@@ -59,7 +65,7 @@ export function SalesView() {
   }, [loadWeather]);
 
   const downloadCsv = async () => {
-    const blob = await api.analytics.salesCsv(period, { year, month });
+    const blob = await api.analytics.salesCsv(period, { year, month, category: category === 'all' ? undefined : category });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -72,6 +78,7 @@ export function SalesView() {
 
   const years = data?.available_years ?? [year];
   const catCenter = data?.categories[0];
+  const catLabel = category === 'all' ? '' : `・${cats.find((c) => c.slug === category)?.label ?? ''}`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -109,13 +116,22 @@ export function SalesView() {
         )}
         {period === 'year' && <span style={{ fontSize: 12.5, color: 'var(--ink-mute)' }}>年別（2026年〜）</span>}
 
+        {/* カテゴリ切替（全体 / カテゴリ別） */}
+        <div style={{ display: 'flex', background: 'var(--card-2)', border: '1.5px solid var(--line-2)', borderRadius: 11, overflow: 'hidden' }}>
+          {[{ slug: 'all', label: '全体' }, ...cats].map((c) => (
+            <button key={c.slug} onClick={() => setCategory(c.slug)} className="btn" style={{ padding: '10px 16px', borderRadius: 0, fontSize: 13, cursor: 'pointer', background: c.slug === category ? 'var(--bar)' : 'transparent', color: c.slug === category ? 'var(--bar-ink)' : 'var(--ink-soft)' }}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+
         <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--ink-mute)' }}>
           期間合計 <span className="price" style={{ fontSize: 15, color: 'var(--ink)' }}><span className="yen">¥</span>{yen(data?.total ?? 0)}</span>
         </span>
       </div>
 
       {/* 売上推移：左=表 / 右=グラフ */}
-      <Panel title="売上推移" sub={period === 'day' ? `${year}年${month}月 日別` : period === 'month' ? `${year}年 月別` : '年別（2026年〜）'}>
+      <Panel title="売上推移" sub={(period === 'day' ? `${year}年${month}月 日別` : period === 'month' ? `${year}年 月別` : '年別（2026年〜）') + catLabel}>
         {!data ? (
           <div style={{ padding: 30, textAlign: 'center', color: 'var(--ink-mute)' }}>読み込み中…</div>
         ) : (
@@ -136,10 +152,10 @@ export function SalesView() {
 
       {/* 時間帯別 + カテゴリ */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 18 }}>
-        <Panel title="時間帯別 売上" sub="選択期間の時間帯合計" right={data && data.total > 0 ? <span className="chip" style={{ fontSize: 11 }}>ピーク {data.hours.labels[data.hours.peak]}時台</span> : undefined}>
+        <Panel title="時間帯別 売上" sub={`選択期間の時間帯合計${catLabel}`} right={data && data.total > 0 ? <span className="chip" style={{ fontSize: 11 }}>ピーク {data.hours.labels[data.hours.peak]}時台</span> : undefined}>
           {data && <ColumnChart labels={data.hours.labels} data={data.hours.data} peak={data.hours.peak} H={232} />}
         </Panel>
-        <Panel title="カテゴリー別 構成比">
+        <Panel title="カテゴリー別 構成比" sub="常に全体の構成比">
           {!data || data.categories.length === 0 ? (
             <div style={{ padding: 30, textAlign: 'center', color: 'var(--ink-mute)' }}>データなし</div>
           ) : (
@@ -171,7 +187,7 @@ export function SalesView() {
       )}
 
       {/* 商品別ランキング（カテゴリ別） */}
-      <Panel title="商品別 売上ランキング" sub="選択期間・カテゴリ別（構成比はカテゴリ内）" right={<button className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 12.5, cursor: 'pointer' }} onClick={downloadCsv}>CSV出力</button>}>
+      <Panel title="商品別 売上ランキング" sub={`選択期間${catLabel}・カテゴリ別（構成比はカテゴリ内）`} right={<button className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 12.5, cursor: 'pointer' }} onClick={downloadCsv}>CSV出力</button>}>
         {!data || data.products.length === 0 ? (
           <div style={{ padding: 30, textAlign: 'center', color: 'var(--ink-mute)' }}>会計データがありません</div>
         ) : (

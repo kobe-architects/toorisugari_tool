@@ -12,6 +12,16 @@ import type {
   HealthDTO,
   LpConfigDTO,
   LpSection,
+  EventDTO,
+  EventInput,
+  EventOptionDTO,
+  EventSelection,
+  EventsResponse,
+  ProfitAnalysisDTO,
+  MaterialDTO,
+  MaterialInput,
+  MaterialPurchaseDTO,
+  MaterialPurchaseInput,
   OperatingDayDTO,
   RegionDTO,
   RegionSource,
@@ -120,12 +130,21 @@ export const api = {
     reverse: (lat: number, lon: number) => request<ReverseGeocodeDTO>('GET', `/geo/reverse?lat=${lat}&lon=${lon}`),
   },
 
-  // ---- 営業日の地域設定（POSレジ・ログイン必須） ----
+  // ---- 営業日の設定（POSレジ・ログイン必須） ----
   operatingDay: {
-    /** 本日の営業地域とデフォルト地域を取得。 */
+    /** 本日の営業地域・イベント・出店料とデフォルト地域を取得。 */
     today: () => request<TodayOperatingDTO>('GET', '/operating-day/today'),
-    /** 本日の営業地域を設定。 */
-    set: (region: RegionDTO, source: RegionSource) => request<OperatingDayDTO>('POST', '/operating-day', { region, source }),
+    /** 開店画面のイベント選択肢（本日開催中を先頭に）。 */
+    eventOptions: () => request<EventOptionDTO[]>('GET', '/operating-day/event-options'),
+    /** 本日の営業地域・イベント・出店料を設定（出店料は経費に自動計上）。 */
+    set: (region: RegionDTO, source: RegionSource, eventFee: number, event: EventSelection) =>
+      request<OperatingDayDTO>('POST', '/operating-day', {
+        region,
+        source,
+        event_fee: eventFee,
+        event_id: event.event_id,
+        new_event_name: event.new_event_name ?? null,
+      }),
   },
 
   // ---- 管理（オーナー専用） ----
@@ -151,6 +170,29 @@ export const api = {
     },
     deleteProductImage: (id: number) => request<AdminProductDTO>('DELETE', `/admin/products/${id}/image`),
     updateSettings: (input: { cash_presets: number[] }) => request<SettingsDTO>('PATCH', '/admin/settings', input),
+
+    // ---- イベント管理 ----
+    events: {
+      list: () => request<EventsResponse>('GET', '/admin/events'),
+      create: (input: EventInput) => request<EventDTO>('POST', '/admin/events', input),
+      update: (id: number, patch: Partial<EventInput>) => request<EventDTO>('PATCH', `/admin/events/${id}`, patch),
+      remove: (id: number) => request<void>('DELETE', `/admin/events/${id}`),
+    },
+
+    // ---- 茶葉（仕入・在庫） ----
+    materials: {
+      list: () => request<MaterialDTO[]>('GET', '/admin/materials'),
+      create: (input: MaterialInput) => request<MaterialDTO>('POST', '/admin/materials', input),
+      update: (id: number, patch: Partial<MaterialInput>) => request<MaterialDTO>('PATCH', `/admin/materials/${id}`, patch),
+      remove: (id: number) => request<void>('DELETE', `/admin/materials/${id}`),
+      /** 仕入履歴（新しい順）。 */
+      purchases: (id: number) => request<MaterialPurchaseDTO[]>('GET', `/admin/materials/${id}/purchases`),
+      /** 仕入登録。更新後の茶葉（残量・平均単価）も返る。 */
+      addPurchase: (input: MaterialPurchaseInput) =>
+        request<{ purchase: MaterialPurchaseDTO; material: MaterialDTO }>('POST', '/admin/material-purchases', input),
+      /** 仕入の削除（誤登録の取り消し）。更新後の茶葉を返す。 */
+      removePurchase: (purchaseId: number) => request<MaterialDTO>('DELETE', `/admin/material-purchases/${purchaseId}`),
+    },
 
     // ---- システム設定（POSログイン時のデフォルト地域） ----
     systemSettings: () => request<SystemSettingsDTO>('GET', '/admin/system-settings'),
@@ -196,14 +238,17 @@ export const api = {
 
   // ---- PC分析（オーナー専用） ----
   analytics: {
-    sales: (period: Period, opts?: { year?: number; month?: number }) => {
+    sales: (period: Period, opts?: { year?: number; month?: number; category?: string }) => {
       const q = new URLSearchParams({ period });
       if (opts?.year) q.set('year', String(opts.year));
       if (opts?.month) q.set('month', String(opts.month));
+      if (opts?.category) q.set('category', opts.category);
       return request<SalesAnalyticsDTO>('GET', `/analytics/sales?${q.toString()}`);
     },
     customers: () => request<CustomerAnalyticsDTO>('GET', '/analytics/customers'),
-    profit: (year: number) => request<ProfitDTO>('GET', `/analytics/profit?year=${year}`),
+    profit: (year: number, category?: string) =>
+      request<ProfitDTO>('GET', `/analytics/profit?year=${year}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
+    profitAnalysis: (year: number) => request<ProfitAnalysisDTO>('GET', `/analytics/profit-analysis?year=${year}`),
     /** 指定年月の日別天気（伝票のある日だけ）。 */
     weather: (year: number, month: number) => request<WeatherMonthDTO>('GET', `/analytics/weather?year=${year}&month=${month}`),
     /** 天気の手動登録・更新（1日分）。 */
@@ -211,10 +256,11 @@ export const api = {
     /** 天気の手動登録を削除（自動取得に戻す）。 */
     deleteWeather: (date: string) => request<void>('DELETE', `/analytics/weather/${date}`),
     /** CSVをBlobで取得（認証ヘッダ付き）。 */
-    salesCsv: async (period: Period, opts?: { year?: number; month?: number }): Promise<Blob> => {
+    salesCsv: async (period: Period, opts?: { year?: number; month?: number; category?: string }): Promise<Blob> => {
       const q = new URLSearchParams({ period });
       if (opts?.year) q.set('year', String(opts.year));
       if (opts?.month) q.set('month', String(opts.month));
+      if (opts?.category) q.set('category', opts.category);
       const headers: Record<string, string> = {};
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
       const res = await fetch(`${BASE}/analytics/sales.csv?${q.toString()}`, { headers });

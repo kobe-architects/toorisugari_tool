@@ -50,7 +50,7 @@ class AdminController extends Controller
     /** 商品一覧（管理用：非表示・売切も含む全件）。 */
     public function products()
     {
-        return Product::with('category:id,slug,label')
+        return Product::with(['category:id,slug,label', 'materials.material:id,name'])
             ->orderBy('category_id')
             ->orderBy('sort_order')
             ->get()
@@ -60,17 +60,61 @@ class AdminController extends Controller
     public function storeProduct(Request $request)
     {
         $data = $this->validateProduct($request, true);
-        $product = Product::create($data);
+        $materials = $data['materials'] ?? null;
+        unset($data['materials']);
 
-        return response()->json($this->present($product->load('category:id,slug,label')), 201);
+        $product = Product::create($data);
+        if (is_array($materials) && $this->materialAllowed($product)) {
+            $this->syncMaterials($product, $materials);
+        }
+        $this->enforceCostPrice($product);
+
+        return response()->json($this->present($product->load(['category:id,slug,label', 'materials.material:id,name'])), 201);
     }
 
     public function updateProduct(Request $request, Product $product)
     {
         $data = $this->validateProduct($request, false);
-        $product->update($data);
+        $hasMaterials = array_key_exists('materials', $data); // キーが無ければ紐付けは変更しない（POSの部分更新対応）
+        $materials = $data['materials'] ?? null;
+        unset($data['materials']);
 
-        return $this->present($product->load('category:id,slug,label'));
+        $product->update($data);
+        if (! $this->materialAllowed($product)) {
+            $this->syncMaterials($product, []); // 対象外カテゴリは紐付けを解除（カテゴリ変更時も自動クリア）
+        } elseif ($hasMaterials) {
+            $this->syncMaterials($product, $materials ?? []);
+        }
+        $this->enforceCostPrice($product);
+
+        return $this->present($product->load(['category:id,slug,label', 'materials.material:id,name']));
+    }
+
+    /** 使用茶葉（原価自動計上）はドリンク・飲み比べカテゴリの商品のみ。 */
+    private function materialAllowed(Product $product): bool
+    {
+        return in_array($product->fresh('category')->category?->slug, ['drink', 'tasting'], true);
+    }
+
+    /** 原価（1個あたり）は物販カテゴリのみ。対象外なら自動クリア。 */
+    private function enforceCostPrice(Product $product): void
+    {
+        $product->refresh();
+        if ($product->cost_price !== null && $product->fresh('category')->category?->slug !== 'goods') {
+            $product->update(['cost_price' => null]);
+        }
+    }
+
+    /** 商品⇔茶葉の紐付けを置き換える。 */
+    private function syncMaterials(Product $product, array $materials): void
+    {
+        $product->materials()->delete();
+        foreach ($materials as $m) {
+            $product->materials()->create([
+                'material_id' => $m['material_id'],
+                'grams' => $m['grams'],
+            ]);
+        }
     }
 
     public function destroyProduct(Product $product)
@@ -120,6 +164,7 @@ class AdminController extends Controller
             'name' => [$required, 'string', 'max:80'],
             'sub' => ['nullable', 'string', 'max:120'],
             'price' => [$required, 'integer', 'min:0'],
+            'cost_price' => ['nullable', 'integer', 'min:0'], // 原価(円/個)。物販カテゴリのみ有効
             'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'icon' => ['nullable', 'string', 'max:32'],
             'stamp' => ['nullable', 'string', 'max:4'],
@@ -132,6 +177,9 @@ class AdminController extends Controller
             'options.*.name' => ['required_with:options', 'string', 'max:40'],
             'options.*.choices' => ['required_with:options', 'array', 'min:1'],
             'options.*.choices.*' => ['string', 'max:40'],
+            'materials' => ['sometimes', 'nullable', 'array'], // 使用茶葉（1杯あたりg）
+            'materials.*.material_id' => ['required', 'integer', 'exists:materials,id'],
+            'materials.*.grams' => ['required', 'numeric', 'min:0.1'],
             'sort_order' => ['nullable', 'integer'],
         ]);
     }
@@ -149,6 +197,7 @@ class AdminController extends Controller
             'name' => $p->name,
             'sub' => $p->sub,
             'price' => $p->price,
+            'cost_price' => $p->cost_price,
             'tax_rate' => (float) $p->tax_rate,
             'icon' => $p->icon,
             'image' => $p->imageUrl(),
@@ -159,6 +208,13 @@ class AdminController extends Controller
             'has_order_source' => $p->has_order_source,
             'show_on_lp' => $p->show_on_lp,
             'options' => $p->options ?? [],
+            'materials' => $p->relationLoaded('materials')
+                ? $p->materials
+                    ->filter(fn ($pm) => $pm->material)
+                    ->map(fn ($pm) => ['material_id' => $pm->material_id, 'name' => $pm->material->name, 'grams' => (float) $pm->grams])
+                    ->values()
+                    ->all()
+                : [],
             'sort_order' => $p->sort_order,
         ];
     }

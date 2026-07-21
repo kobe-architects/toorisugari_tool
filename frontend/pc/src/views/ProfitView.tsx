@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@shared/api';
-import type { ProfitDTO, ProfitRow } from '@shared/types';
+import type { CategoryLiteDTO, ProfitDTO, ProfitRow } from '@shared/types';
 import { Panel } from '../components/Panel';
 import { yen } from '../lib/format';
 
@@ -10,6 +10,7 @@ const selectStyle: React.CSSProperties = {
 };
 
 const COLS = '60px 1fr 1fr 1fr 1fr 1fr';
+const COLS_CAT = '60px 1fr 1fr 1fr 90px'; // カテゴリ別（月/売上/原価(自動)/粗利益/粗利率）
 
 /** 金額表示。マイナスは朱色＋「−」。 */
 function Money({ v, bold }: { v: number; bold?: boolean }) {
@@ -39,30 +40,55 @@ function SummaryCard({ label, value, margin, strong }: { label: string; value: n
 export function ProfitView() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [view, setView] = useState<'table' | 'graph'>('table');
+  const [cats, setCats] = useState<CategoryLiteDTO[]>([]);
+  const [category, setCategory] = useState('all'); // カテゴリslug（all=全体）
   const [data, setData] = useState<ProfitDTO | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    api.admin.categories().then(setCats).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setData(null);
-    api.analytics.profit(year).then(setData).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [year]);
+    api.analytics.profit(year, category === 'all' ? undefined : category).then(setData).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }, [year, category]);
 
   const years = data?.available_years ?? [year];
+  const filtered = category !== 'all'; // カテゴリ別表示（手入力原価・経費を含まない）
+  const catLabel = filtered ? cats.find((c) => c.slug === category)?.label ?? '' : '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {/* 年間サマリー：粗利益・営業利益を強調 */}
-      {data && (
+      {/* カテゴリ切替 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', background: 'var(--card-2)', border: '1.5px solid var(--line-2)', borderRadius: 11, overflow: 'hidden' }}>
+          {[{ slug: 'all', label: '全体' }, ...cats].map((c) => (
+            <button key={c.slug} onClick={() => setCategory(c.slug)} className="btn" style={{ padding: '10px 16px', borderRadius: 0, fontSize: 13, cursor: 'pointer', background: c.slug === category ? 'var(--bar)' : 'transparent', color: c.slug === category ? 'var(--bar-ink)' : 'var(--ink-soft)' }}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+        {filtered && <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>カテゴリ別は自動計上原価のみ（手入力原価・経費は全体表示のみ）</span>}
+      </div>
+
+      {/* 年間サマリー */}
+      {data && (filtered ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16 }}>
+          <SummaryCard label={`売上（${data.year}年・${catLabel}）`} value={data.total_sales} />
+          <SummaryCard label="粗利益（売上 − 自動計上原価）" value={data.total_gross} margin={data.gross_margin} strong />
+        </div>
+      ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
           <SummaryCard label={`売上（${data.year}年）`} value={data.total_sales} />
           <SummaryCard label="粗利益（売上 − 原価）" value={data.total_gross} margin={data.gross_margin} strong />
           <SummaryCard label="営業利益（粗利益 − 経費）" value={data.total_operating} margin={data.operating_margin} strong />
         </div>
-      )}
+      ))}
 
       <Panel
-        title="損益（月別）"
-        sub="粗利益 = 売上 − 原価 ／ 営業利益 = 粗利益 − 経費"
+        title={filtered ? `損益（月別・${catLabel}）` : '損益（月別）'}
+        sub={filtered ? '粗利益 = 売上 − 自動計上原価（茶葉・物販） ／ 手入力原価・経費は「全体」でのみ表示' : '粗利益 = 売上 − 原価 ／ 営業利益 = 粗利益 − 経費 ／ 原価 = 自動計上（茶葉・物販）＋ 経費画面の手入力'}
         right={
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <div style={{ display: 'flex', background: 'var(--card-2)', border: '1.5px solid var(--line-2)', borderRadius: 9, overflow: 'hidden' }}>
@@ -82,7 +108,37 @@ export function ProfitView() {
         {!data ? (
           <div style={{ padding: 30, textAlign: 'center', color: 'var(--ink-mute)' }}>読み込み中…</div>
         ) : view === 'graph' ? (
-          <ProfitChart rows={data.rows} />
+          <ProfitChart rows={data.rows} hideOperating={filtered} />
+        ) : filtered ? (
+          <div style={{ minWidth: 640 }}>
+            {/* カテゴリ別：売上・自動計上原価・粗利のみ */}
+            <div style={{ display: 'grid', gridTemplateColumns: COLS_CAT, fontSize: 10.5, color: 'var(--ink-mute)', fontWeight: 700, letterSpacing: '0.08em', padding: '0 12px 10px' }}>
+              <span>月</span>
+              <span style={{ textAlign: 'right' }}>売上</span>
+              <span style={{ textAlign: 'right' }}>原価(自動)</span>
+              <span style={{ textAlign: 'right', color: 'var(--brown)' }}>粗利益</span>
+              <span style={{ textAlign: 'right' }}>粗利率</span>
+            </div>
+            {data.rows.map((r) => {
+              const empty = r.sales === 0 && r.cost === 0;
+              return (
+                <div key={r.month} style={{ display: 'grid', gridTemplateColumns: COLS_CAT, alignItems: 'center', padding: '10px 12px', borderTop: '1px dashed var(--line-2)', opacity: empty ? 0.5 : 1 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13.5 }}>{r.label}</span>
+                  <span style={{ textAlign: 'right' }}><Money v={r.sales} /></span>
+                  <span style={{ textAlign: 'right' }} className="price"><span className="yen">¥</span>{yen(r.cost)}</span>
+                  <span style={{ textAlign: 'right' }}><Money v={r.gross} bold /></span>
+                  <span style={{ textAlign: 'right', fontSize: 12, color: 'var(--ink-mute)' }}>{r.gross_margin != null ? `${r.gross_margin}%` : '—'}</span>
+                </div>
+              );
+            })}
+            <div style={{ display: 'grid', gridTemplateColumns: COLS_CAT, alignItems: 'center', padding: '14px 12px 4px', borderTop: '2px solid var(--line-2)', marginTop: 6 }}>
+              <span style={{ fontWeight: 800, fontSize: 14 }}>年間</span>
+              <span style={{ textAlign: 'right' }}><Money v={data.total_sales} bold /></span>
+              <span style={{ textAlign: 'right' }} className="price"><span className="yen">¥</span>{yen(data.total_cost)}</span>
+              <span style={{ textAlign: 'right' }}><Money v={data.total_gross} bold /></span>
+              <span style={{ textAlign: 'right', fontSize: 12, color: 'var(--ink-mute)' }}>{data.gross_margin != null ? `${data.gross_margin}%` : '—'}</span>
+            </div>
+          </div>
         ) : (
           <div style={{ minWidth: 720 }}>
             <div style={{ display: 'grid', gridTemplateColumns: COLS, fontSize: 10.5, color: 'var(--ink-mute)', fontWeight: 700, letterSpacing: '0.08em', padding: '0 12px 10px' }}>
@@ -99,7 +155,12 @@ export function ProfitView() {
                 <div key={r.month} style={{ display: 'grid', gridTemplateColumns: COLS, alignItems: 'center', padding: '10px 12px', borderTop: '1px dashed var(--line-2)', opacity: empty ? 0.5 : 1 }}>
                   <span style={{ fontWeight: 700, fontSize: 13.5 }}>{r.label}</span>
                   <span style={{ textAlign: 'right' }}><Money v={r.sales} /></span>
-                  <span style={{ textAlign: 'right' }} className="price"><span className="yen">¥</span>{yen(r.cost)}</span>
+                  <span style={{ textAlign: 'right' }}>
+                    <span className="price"><span className="yen">¥</span>{yen(r.cost)}</span>
+                    {r.cost_auto > 0 && (
+                      <span style={{ display: 'block', fontSize: 10, color: 'var(--ink-mute)' }}>うち自動 ¥{yen(r.cost_auto)}</span>
+                    )}
+                  </span>
                   <span style={{ textAlign: 'right' }}><Money v={r.gross} /></span>
                   <span style={{ textAlign: 'right' }} className="price"><span className="yen">¥</span>{yen(r.expense)}</span>
                   <span style={{ textAlign: 'right' }}><Money v={r.operating} bold /></span>
@@ -110,7 +171,12 @@ export function ProfitView() {
             <div style={{ display: 'grid', gridTemplateColumns: COLS, alignItems: 'center', padding: '14px 12px 4px', borderTop: '2px solid var(--line-2)', marginTop: 6 }}>
               <span style={{ fontWeight: 800, fontSize: 14 }}>年間</span>
               <span style={{ textAlign: 'right' }}><Money v={data.total_sales} bold /></span>
-              <span style={{ textAlign: 'right' }} className="price" ><span className="yen">¥</span>{yen(data.total_cost)}</span>
+              <span style={{ textAlign: 'right' }}>
+                <span className="price"><span className="yen">¥</span>{yen(data.total_cost)}</span>
+                {data.total_cost_auto > 0 && (
+                  <span style={{ display: 'block', fontSize: 10, color: 'var(--ink-mute)' }}>うち自動 ¥{yen(data.total_cost_auto)}</span>
+                )}
+              </span>
               <span style={{ textAlign: 'right' }}><Money v={data.total_gross} bold /></span>
               <span style={{ textAlign: 'right' }} className="price"><span className="yen">¥</span>{yen(data.total_expense)}</span>
               <span style={{ textAlign: 'right' }}><Money v={data.total_operating} bold /></span>
@@ -123,14 +189,14 @@ export function ProfitView() {
 }
 
 /** 月次の 売上 / 粗利益 / 営業利益 を折れ線で表示（マイナス対応・0基準線つき）。 */
-function ProfitChart({ rows }: { rows: ProfitRow[] }) {
+function ProfitChart({ rows, hideOperating }: { rows: ProfitRow[]; hideOperating?: boolean }) {
   const W = 860, H = 320, padL = 70, padR = 16, padT = 18, padB = 34;
   const series = [
     { key: 'sales' as const, label: '売上', color: 'var(--brown)' },
     { key: 'gross' as const, label: '粗利益', color: 'var(--gold)' },
-    { key: 'operating' as const, label: '営業利益', color: 'var(--accent)' },
+    ...(hideOperating ? [] : [{ key: 'operating' as const, label: '営業利益', color: 'var(--accent)' }]),
   ];
-  const vals = rows.flatMap((r) => [r.sales, r.gross, r.operating]);
+  const vals = rows.flatMap((r) => (hideOperating ? [r.sales, r.gross] : [r.sales, r.gross, r.operating]));
   const rawMax = Math.max(0, ...vals);
   const rawMin = Math.min(0, ...vals);
   const span = rawMax - rawMin || 1;

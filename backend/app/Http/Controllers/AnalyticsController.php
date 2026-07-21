@@ -21,36 +21,33 @@ class AnalyticsController extends Controller
     {
         [$period, $year, $month] = $this->resolveSelection($request);
         [$buckets, $start, $end] = $this->buckets($period, $year, $month);
+        $category = $request->query('category') ?: null; // カテゴリslug（null=全体）
 
         $orders = $this->ordersIn($start, $end);
+        $items = OrderItem::with(['product.category', 'order:id,completed_at'])->whereIn('order_id', $orders->pluck('id'))->get();
+        // カテゴリ指定時は明細ベースで集計（売上=明細合計・会計数=該当明細を含む伝票数）
+        $catItems = $category
+            ? $items->filter(fn (OrderItem $i) => optional(optional($i->product)->category)->slug === $category)
+            : null;
 
-        $rows = array_map(function ($b) use ($orders) {
-            $inBucket = $orders->filter(fn (Order $o) => $o->completed_at->betweenIncluded($b['start'], $b['end']));
-            $sales = (int) $inBucket->sum('total');
-            $count = $inBucket->count();
-            return [
-                'label' => $b['label'],
-                'sales' => $sales,
-                'count' => $count,
-                'avg' => $count ? intdiv($sales, $count) : 0,
-            ];
-        }, $buckets);
-
-        $total = (int) $orders->sum('total');
+        $rows = $this->trendRows($buckets, $orders, $catItems);
+        $total = $catItems !== null ? (int) $catItems->sum('line_total') : (int) $orders->sum('total');
 
         // 時間帯（選択期間, 10-21時）
         $hours = [];
         for ($h = 10; $h <= 21; $h++) {
-            $hours[] = (int) $orders->filter(fn (Order $o) => optional($o->completed_at)->hour === $h)->sum('total');
+            $hours[] = $catItems !== null
+                ? (int) $catItems->filter(fn (OrderItem $i) => optional(optional($i->order)->completed_at)->hour === $h)->sum('line_total')
+                : (int) $orders->filter(fn (Order $o) => optional($o->completed_at)->hour === $h)->sum('total');
         }
         $peak = $hours ? array_keys($hours, max($hours))[0] : 0;
 
-        $items = OrderItem::with('product.category')->whereIn('order_id', $orders->pluck('id'))->get();
+        $scoped = $catItems ?? $items;
 
         // 注文経路別（直注文 / 試飲から）
         $bySource = collect(['direct' => '直注文', 'tasting' => '試飲から'])
-            ->map(function ($label, $key) use ($items) {
-                $g = $items->where('order_source', $key);
+            ->map(function ($label, $key) use ($scoped) {
+                $g = $scoped->where('order_source', $key);
                 return ['key' => $key, 'label' => $label, 'amount' => (int) $g->sum('line_total'), 'qty' => (int) $g->sum('qty')];
             })->values()->all();
 
@@ -58,6 +55,7 @@ class AnalyticsController extends Controller
             'period' => $period,
             'year' => $year,
             'month' => $month,
+            'category' => $category,
             'available_years' => $this->availableYears(),
             'total' => $total,
             'rows' => $rows,
@@ -66,28 +64,77 @@ class AnalyticsController extends Controller
                 'data' => $hours,
                 'peak' => $peak,
             ],
-            'categories' => $this->categoryComposition($items, $total),
-            'products' => $this->productRanking($items),
+            'categories' => $this->categoryComposition($items, (int) $orders->sum('total')), // 構成比は常に全体
+            'products' => $this->productRanking($scoped),
             'by_source' => $bySource,
         ];
     }
 
-    /** 損益管理：指定年の月別 売上・費用・営業利益。 */
+    /** 売上推移の各行。カテゴリ指定時（$catItems）は明細ベース、全体は伝票ベース。 */
+    private function trendRows(array $buckets, Collection $orders, ?Collection $catItems): array
+    {
+        return array_map(function ($b) use ($orders, $catItems) {
+            if ($catItems !== null) {
+                $in = $catItems->filter(fn (OrderItem $i) => $i->order && $i->order->completed_at->betweenIncluded($b['start'], $b['end']));
+                $sales = (int) $in->sum('line_total');
+                $count = $in->pluck('order_id')->unique()->count();
+            } else {
+                $in = $orders->filter(fn (Order $o) => $o->completed_at->betweenIncluded($b['start'], $b['end']));
+                $sales = (int) $in->sum('total');
+                $count = $in->count();
+            }
+
+            return [
+                'label' => $b['label'],
+                'sales' => $sales,
+                'count' => $count,
+                'avg' => $count ? intdiv($sales, $count) : 0,
+            ];
+        }, $buckets);
+    }
+
+    /**
+     * 損益管理：指定年の月別 売上・費用・営業利益。原価 = 茶葉の自動計上 ＋ 手入力。
+     * category（slug）指定時はカテゴリ別損益：売上=明細合計・原価=自動計上分のみ
+     * （月単位で手入力する原価・経費はカテゴリに按分できないため 0 として返す）。
+     */
     public function profit(Request $request)
     {
         $year = (int) ($request->query('year') ?: now()->year);
+        $category = $request->query('category') ?: null;
 
         $start = Carbon::create($year, 1, 1)->startOfDay();
         $end = Carbon::create($year, 12, 31)->endOfDay();
         $orders = $this->ordersIn($start, $end);
         $expenses = \App\Models\Expense::where('year', $year)->get(['month', 'type', 'amount']);
 
+        // カテゴリ指定時は明細（該当カテゴリ）で月別売上を計算
+        $catItems = null;
+        if ($category) {
+            $catItems = OrderItem::with(['product.category', 'order:id,completed_at'])
+                ->whereIn('order_id', $orders->pluck('id'))
+                ->get()
+                ->filter(fn (OrderItem $i) => optional(optional($i->product)->category)->slug === $category);
+        }
+
+        // 販売時に自動計上した原価（月別・カテゴリ指定時は該当カテゴリ商品分のみ）
+        $autoCosts = \App\Models\MaterialConsumption::query()
+            ->whereBetween('consumed_on', [$start->toDateString(), $end->toDateString()])
+            ->when($category, fn ($q) => $q->whereHas('orderItem.product.category', fn ($c) => $c->where('slug', $category)))
+            ->selectRaw('MONTH(consumed_on) AS m, SUM(amount) AS amt')
+            ->groupBy('m')
+            ->pluck('amt', 'm');
+
         $rows = [];
         for ($m = 1; $m <= 12; $m++) {
             $monthExp = $expenses->where('month', $m);
-            $sales = (int) $orders->filter(fn (Order $o) => optional($o->completed_at)->month === $m)->sum('total');
-            $cost = (int) $monthExp->where('type', 'cost')->sum('amount');     // 原価
-            $expense = (int) $monthExp->where('type', 'expense')->sum('amount'); // 経費
+            $sales = $catItems !== null
+                ? (int) $catItems->filter(fn (OrderItem $i) => optional(optional($i->order)->completed_at)->month === $m)->sum('line_total')
+                : (int) $orders->filter(fn (Order $o) => optional($o->completed_at)->month === $m)->sum('total');
+            $costManual = $category ? 0 : (int) $monthExp->where('type', 'cost')->sum('amount'); // 手入力の原価（全体のみ）
+            $costAuto = (int) round((float) ($autoCosts[$m] ?? 0));                              // 自動原価（茶葉・物販）
+            $cost = $costManual + $costAuto;
+            $expense = $category ? 0 : (int) $monthExp->where('type', 'expense')->sum('amount'); // 経費（全体のみ）
             $gross = $sales - $cost;                 // 粗利益
             $operating = $gross - $expense;          // 営業利益
 
@@ -96,6 +143,8 @@ class AnalyticsController extends Controller
                 'label' => "{$m}月",
                 'sales' => $sales,
                 'cost' => $cost,
+                'cost_auto' => $costAuto,
+                'cost_manual' => $costManual,
                 'gross' => $gross,
                 'expense' => $expense,
                 'operating' => $operating,
@@ -111,15 +160,115 @@ class AnalyticsController extends Controller
 
         return [
             'year' => $year,
+            'category' => $category,
             'available_years' => $this->availableYears(),
             'rows' => $rows,
             'total_sales' => $totalSales,
             'total_cost' => $sum('cost'),
+            'total_cost_auto' => $sum('cost_auto'),
+            'total_cost_manual' => $sum('cost_manual'),
             'total_gross' => $totalGross,
             'total_expense' => $sum('expense'),
             'total_operating' => $totalOperating,
             'gross_margin' => $totalSales ? round($totalGross / $totalSales * 100, 1) : null,
             'operating_margin' => $totalSales ? round($totalOperating / $totalSales * 100, 1) : null,
+        ];
+    }
+
+    /**
+     * 損益分析：年間サマリー・月次推移に加え、カテゴリ別/商品別の粗利と経費内訳を返す。
+     * 商品別・カテゴリ別の原価は販売時の自動計上分（茶葉・物販）。
+     */
+    public function profitAnalysis(Request $request)
+    {
+        $request->query->remove('category'); // 全体の損益をベースにする
+        $overall = $this->profit($request);
+        $year = $overall['year'];
+
+        $start = Carbon::create($year, 1, 1)->startOfDay();
+        $end = Carbon::create($year, 12, 31)->endOfDay();
+        $orders = $this->ordersIn($start, $end);
+        $items = OrderItem::with('product.category')->whereIn('order_id', $orders->pluck('id'))->get();
+
+        $cons = \App\Models\MaterialConsumption::with('orderItem.product.category')
+            ->whereBetween('consumed_on', [$start->toDateString(), $end->toDateString()])
+            ->get();
+        $consByProduct = $cons->groupBy(fn ($c) => optional($c->orderItem)->product_id ?? 0)->map(fn ($g) => (float) $g->sum('amount'));
+        $consByCategory = $cons->groupBy(fn ($c) => optional(optional(optional($c->orderItem)->product)->category)->label ?? 'その他')->map(fn ($g) => (float) $g->sum('amount'));
+
+        $totalSales = (int) $overall['total_sales'];
+
+        // カテゴリ別 粗利（原価は自動計上分）
+        $categories = $items
+            ->groupBy(fn (OrderItem $i) => optional(optional($i->product)->category)->label ?? 'その他')
+            ->map(function ($g, $label) use ($consByCategory, $totalSales) {
+                $sales = (int) $g->sum('line_total');
+                $cost = (int) round($consByCategory[$label] ?? 0);
+                $gross = $sales - $cost;
+                return [
+                    'label' => $label,
+                    'sales' => $sales,
+                    'cost_auto' => $cost,
+                    'gross' => $gross,
+                    'margin' => $sales ? round($gross / $sales * 100, 1) : null,
+                    'share' => $totalSales ? round($sales / $totalSales * 100) : 0,
+                ];
+            })
+            ->sortByDesc('sales')
+            ->values()
+            ->all();
+
+        // 商品別 粗利ランキング（原価は自動計上分）
+        $products = $items
+            ->filter(fn (OrderItem $i) => $i->product_id)
+            ->groupBy('product_id')
+            ->map(function ($g) use ($consByProduct) {
+                $first = $g->first();
+                $p = $first->product;
+                $sales = (int) $g->sum('line_total');
+                $cost = (int) round($consByProduct[$first->product_id] ?? 0);
+                $gross = $sales - $cost;
+                return [
+                    'name' => $p?->name ?? $first->name,
+                    'category' => $p?->category?->label ?? 'その他',
+                    'qty' => (int) $g->sum('qty'),
+                    'sales' => $sales,
+                    'cost_auto' => $cost,
+                    'gross' => $gross,
+                    'margin' => $sales ? round($gross / $sales * 100, 1) : null,
+                ];
+            })
+            ->sortByDesc('gross')
+            ->values()
+            ->take(20)
+            ->all();
+
+        // 経費内訳（手入力＋出店料などの自動経費行を名目ごとに合算）
+        $expenses = \App\Models\Expense::where('year', $year)->get(['category', 'type', 'amount'])
+            ->groupBy('category')
+            ->map(fn ($g, $name) => ['category' => $name, 'type' => $g->first()->type, 'amount' => (int) $g->sum('amount')])
+            ->sortByDesc('amount')
+            ->values()
+            ->all();
+
+        return [
+            'year' => $year,
+            'available_years' => $overall['available_years'],
+            'summary' => [
+                'sales' => $overall['total_sales'],
+                'cost' => $overall['total_cost'],
+                'cost_auto' => $overall['total_cost_auto'],
+                'cost_manual' => $overall['total_cost_manual'],
+                'gross' => $overall['total_gross'],
+                'expense' => $overall['total_expense'],
+                'operating' => $overall['total_operating'],
+                'gross_margin' => $overall['gross_margin'],
+                'operating_margin' => $overall['operating_margin'],
+            ],
+            'monthly' => $overall['rows'],
+            'categories' => $categories,
+            'products' => $products,
+            'expenses' => $expenses,
         ];
     }
 
@@ -188,21 +337,28 @@ class AnalyticsController extends Controller
         ];
     }
 
-    /** 選択期間の売上推移CSV出力。 */
+    /** 選択期間の売上推移CSV出力（category指定時はカテゴリ別）。 */
     public function salesCsv(Request $request): StreamedResponse
     {
         [$period, $year, $month] = $this->resolveSelection($request);
         [$buckets, $start, $end] = $this->buckets($period, $year, $month);
+        $category = $request->query('category') ?: null;
         $orders = $this->ordersIn($start, $end);
 
-        $rows = array_map(function ($b) use ($orders) {
-            $inBucket = $orders->filter(fn (Order $o) => $o->completed_at->betweenIncluded($b['start'], $b['end']));
-            $sales = (int) $inBucket->sum('total');
-            $count = $inBucket->count();
-            return [$b['label'], $sales, $count, $count ? intdiv($sales, $count) : 0];
-        }, $buckets);
+        $catItems = null;
+        if ($category) {
+            $catItems = OrderItem::with(['product.category', 'order:id,completed_at'])
+                ->whereIn('order_id', $orders->pluck('id'))
+                ->get()
+                ->filter(fn (OrderItem $i) => optional(optional($i->product)->category)->slug === $category);
+        }
 
-        $name = "sales_{$period}_{$year}".($period === 'day' ? "-{$month}" : '').'.csv';
+        $rows = array_map(
+            fn ($r) => [$r['label'], $r['sales'], $r['count'], $r['avg']],
+            $this->trendRows($buckets, $orders, $catItems)
+        );
+
+        $name = "sales_{$period}_{$year}".($period === 'day' ? "-{$month}" : '').($category ? "_{$category}" : '').'.csv';
 
         return response()->streamDownload(function () use ($rows) {
             $out = fopen('php://output', 'w');

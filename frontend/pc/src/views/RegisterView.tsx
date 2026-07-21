@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@shared/api';
-import type { AdminProductDTO, CategoryLiteDTO, ProductInput } from '@shared/types';
+import type { AdminProductDTO, CategoryLiteDTO, MaterialDTO, ProductInput } from '@shared/types';
 import { ProductIcon } from '@shared/icons';
 import { Panel } from '../components/Panel';
 import { yen } from '../lib/format';
@@ -26,6 +26,7 @@ function Thumb({ p, size = 44 }: { p: { image: string | null; icon: string | nul
 export function RegisterView() {
   const [products, setProducts] = useState<AdminProductDTO[]>([]);
   const [cats, setCats] = useState<CategoryLiteDTO[]>([]);
+  const [mats, setMats] = useState<MaterialDTO[]>([]);
   const [editing, setEditing] = useState<AdminProductDTO | 'new' | null>(null);
   const [error, setError] = useState('');
 
@@ -34,6 +35,7 @@ export function RegisterView() {
   };
   useEffect(() => {
     api.admin.categories().then(setCats);
+    api.admin.materials.list().then(setMats).catch(() => {});
     load();
   }, []);
 
@@ -111,6 +113,7 @@ export function RegisterView() {
         <ProductEditorModal
           product={editing === 'new' ? null : editing}
           cats={cats}
+          mats={mats}
           onClose={() => setEditing(null)}
           onSaved={load}
         />
@@ -178,11 +181,12 @@ function CashPresetsPanel() {
   );
 }
 
-function ProductEditorModal({ product, cats, onClose, onSaved }: { product: AdminProductDTO | null; cats: CategoryLiteDTO[]; onClose: () => void; onSaved: () => void }) {
+function ProductEditorModal({ product, cats, mats, onClose, onSaved }: { product: AdminProductDTO | null; cats: CategoryLiteDTO[]; mats: MaterialDTO[]; onClose: () => void; onSaved: () => void }) {
   const [current, setCurrent] = useState<AdminProductDTO | null>(product);
   const [name, setName] = useState(product?.name ?? '');
   const [sub, setSub] = useState(product?.sub ?? '');
   const [price, setPrice] = useState(product ? String(product.price) : '');
+  const [costPrice, setCostPrice] = useState(product?.cost_price != null ? String(product.cost_price) : '');
   const [taxRate, setTaxRate] = useState(product ? String(product.tax_rate) : '10');
   const [categoryId, setCategoryId] = useState<number | null>(product?.category_id ?? cats[0]?.id ?? null);
   const [icon, setIcon] = useState<string | null>(product?.icon ?? 'cup');
@@ -193,6 +197,7 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
   const [hasOrderSource, setHasOrderSource] = useState(product?.has_order_source ?? false);
   const [showOnLp, setShowOnLp] = useState(product?.show_on_lp ?? true);
   const [optGroups, setOptGroups] = useState<{ name: string; choicesText: string }[]>((product?.options ?? []).map((g) => ({ name: g.name, choicesText: g.choices.join('、') })));
+  const [useMats, setUseMats] = useState<{ material_id: number | ''; grams: string }[]>((product?.materials ?? []).map((m) => ({ material_id: m.material_id, grams: String(m.grams) })));
   const [image, setImage] = useState<string | null>(product?.image ?? null);
   const [busy, setBusy] = useState(false);
   const [imgBusy, setImgBusy] = useState(false);
@@ -200,6 +205,9 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
   const [saved, setSaved] = useState('');
 
   const valid = useMemo(() => name.trim() !== '' && price !== '' && Number(price) >= 0 && categoryId != null, [name, price, categoryId]);
+  const catSlug = useMemo(() => cats.find((c) => c.id === categoryId)?.slug, [cats, categoryId]);
+  const isTea = catSlug === 'drink' || catSlug === 'tasting'; // 使用茶葉（原価自動計上）の対象
+  const isGoods = catSlug === 'goods'; // 原価(円/個)の登録対象
 
   const save = async () => {
     if (!valid || categoryId == null || busy) return;
@@ -212,6 +220,12 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
       options: optGroups
         .map((g) => ({ name: g.name.trim(), choices: g.choicesText.split(/[、,\s]+/).map((s) => s.trim()).filter(Boolean) }))
         .filter((g) => g.name && g.choices.length > 0),
+      materials: isTea
+        ? useMats
+            .filter((m) => m.material_id !== '' && Number(m.grams) > 0)
+            .map((m) => ({ material_id: Number(m.material_id), grams: Number(m.grams) }))
+        : [],
+      cost_price: isGoods && costPrice !== '' ? Number(costPrice) : null,
     };
     try {
       const result = current ? await api.admin.updateProduct(current.id, input) : await api.admin.createProduct(input);
@@ -328,6 +342,15 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
             {cats.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
         </div>
+        {isGoods && (
+          <div className="field">
+            <div className="field-label">原価（1個あたり）<span style={{ fontSize: 10.5, color: 'var(--ink-mute)', marginLeft: 6 }}>販売時に自動で原価計上（物販のみ）</span></div>
+            <div style={{ position: 'relative', width: 180 }}>
+              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontFamily: 'var(--mincho)', fontWeight: 700, color: 'var(--ink-soft)' }}>¥</span>
+              <input className="input mincho" inputMode="numeric" value={costPrice} onChange={(e) => setCostPrice(e.target.value.replace(/[^0-9]/g, ''))} placeholder="例：600" style={{ paddingLeft: 30, fontSize: 16 }} />
+            </div>
+          </div>
+        )}
         <div className="field">
           <div className="field-label">ハンコ札</div>
           <div className="seg">
@@ -348,6 +371,41 @@ function ProductEditorModal({ product, cats, onClose, onSaved }: { product: Admi
           ))}
           <button className="btn btn-ghost" onClick={() => setOptGroups((a) => [...a, { name: '', choicesText: '' }])} style={{ width: '100%', padding: 10, borderStyle: 'dashed', fontSize: 13, cursor: 'pointer' }}>＋ オプションを追加</button>
         </div>
+
+        {isTea && (
+        <div className="field">
+          <div className="field-label">使用茶葉<span style={{ fontSize: 10.5, color: 'var(--ink-mute)', marginLeft: 6 }}>販売時に在庫から消費し原価を自動計上（1杯あたりg・ドリンク/飲み比べ）</span></div>
+          {mats.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>茶葉が未登録です。「仕入・在庫」画面から茶葉を登録してください。</div>
+          ) : (
+            <>
+              {useMats.map((m, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <select
+                    style={{ ...selectStyle, flex: 1 }}
+                    value={m.material_id}
+                    onChange={(e) => setUseMats((a) => a.map((x, j) => (j === i ? { ...x, material_id: e.target.value === '' ? '' : Number(e.target.value) } : x)))}
+                  >
+                    <option value="">茶葉を選択</option>
+                    {mats.map((mt) => <option key={mt.id} value={mt.id}>{mt.name}</option>)}
+                  </select>
+                  <input
+                    className="input"
+                    inputMode="decimal"
+                    placeholder="g数"
+                    value={m.grams}
+                    onChange={(e) => setUseMats((a) => a.map((x, j) => (j === i ? { ...x, grams: e.target.value.replace(/[^0-9.]/g, '') } : x)))}
+                    style={{ width: 90, textAlign: 'right' }}
+                  />
+                  <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>g</span>
+                  <button className="btn" onClick={() => setUseMats((a) => a.filter((_, j) => j !== i))} style={{ padding: '0 14px', alignSelf: 'stretch', background: 'transparent', color: 'var(--accent)', border: '1.5px solid var(--accent)', cursor: 'pointer' }}>✕</button>
+                </div>
+              ))}
+              <button className="btn btn-ghost" onClick={() => setUseMats((a) => [...a, { material_id: '', grams: '' }])} style={{ width: '100%', padding: 10, borderStyle: 'dashed', fontSize: 13, cursor: 'pointer' }}>＋ 使用茶葉を追加</button>
+            </>
+          )}
+        </div>
+        )}
 
         <div style={{ background: 'var(--card)', border: '1.5px solid var(--line)', borderRadius: 13, padding: '4px 16px', marginTop: 4 }}>
           <ToggleRow title="販売状態" sub="「販売中」で会計画面に表示" on={!isSoldOut} onToggle={() => setIsSoldOut((v) => !v)} border />

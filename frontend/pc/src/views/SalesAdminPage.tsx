@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { SalesView } from './SalesView';
 import { ExpenseView } from './ExpenseView';
 import { ProfitView } from './ProfitView';
+import { ProfitAnalysisView } from './ProfitAnalysisView';
 
-type Tab = 'sales' | 'expense' | 'profit';
+type Tab = 'sales' | 'expense' | 'profit' | 'analysis';
 const TABS: { k: Tab; label: string }[] = [
   { k: 'sales', label: '売上管理' },
   { k: 'expense', label: '経費管理' },
   { k: 'profit', label: '損益管理' },
+  { k: 'analysis', label: '損益分析' },
 ];
 
 export function SalesAdminPage() {
@@ -47,6 +49,7 @@ export function SalesAdminPage() {
       {tab === 'sales' && <SalesView />}
       {tab === 'expense' && <ExpenseView />}
       {tab === 'profit' && <ProfitView />}
+      {tab === 'analysis' && <ProfitAnalysisView />}
     </div>
   );
 }

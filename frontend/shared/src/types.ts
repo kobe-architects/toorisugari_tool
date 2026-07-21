@@ -94,19 +94,38 @@ export interface ReverseGeocodeDTO {
   result: RegionDTO;
 }
 
-/** POSレジ・本日の営業地域（未設定なら region=null）。default はシステム設定のデフォルト地域。 */
+/** POSレジ・本日の営業設定（未設定なら region=null / event_fee=null）。default はシステム設定のデフォルト地域。 */
 export interface TodayOperatingDTO {
   date: string; // YYYY-MM-DD
   region: RegionDTO | null;
   source: RegionSource | null;
+  event: { id: number; name: string } | null; // 開店時に選択したイベント（null=イベントなし）
+  event_fee: number | null; // イベント出店料(円)。null=未登録（開店時に必須入力）
   default: RegionDTO | null;
 }
 
-/** 営業地域の保存結果。 */
+/** 開店画面のイベント選択肢。 */
+export interface EventOptionDTO {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  covers_today: boolean; // 本日が開催期間内
+}
+
+/** 開店時のイベント指定。id指定（null=イベントなし）か、新規名で本日1日のイベントを作成。 */
+export interface EventSelection {
+  event_id: number | null;
+  new_event_name?: string;
+}
+
+/** 営業設定の保存結果。 */
 export interface OperatingDayDTO {
   date: string;
   region: RegionDTO;
   source: RegionSource | null;
+  event: { id: number; name: string } | null;
+  event_fee: number;
 }
 
 /** 天気アイコンの種別（frontend の WeatherIcon と対応）。 */
@@ -293,6 +312,78 @@ export interface OrderListParams {
   dir?: 'asc' | 'desc';
 }
 
+// ---- イベント管理 ----
+/** 出店イベント（期間内の売上・自動原価・出店料を日付で集計）。 */
+export interface EventDTO {
+  id: number;
+  name: string;
+  start_date: string; // YYYY-MM-DD
+  end_date: string; // YYYY-MM-DD
+  note: string | null;
+  days: number; // 開店登録した営業日数
+  sales: number;
+  order_count: number;
+  avg_price: number;
+  cost_auto: number; // 自動原価（茶葉・物販）
+  event_fee: number; // イベント出店料合計
+  profit: number; // 売上 − 自動原価 − 出店料
+  margin: number | null; // 利益率(%)
+}
+
+export interface EventInput {
+  name: string;
+  start_date: string;
+  end_date: string;
+  note?: string | null;
+}
+
+export interface EventsResponse {
+  events: EventDTO[];
+  overall_sales: number; // 全体売上（全期間・全会計）
+  event_sales: number; // 登録イベントの売上合計
+  event_profit: number; // 登録イベントの利益合計
+}
+
+// ---- 仕入・在庫（茶葉） ----
+/** 茶葉マスタ。残量と移動平均g単価はサーバ側で管理。 */
+export interface MaterialDTO {
+  id: number;
+  name: string;
+  stock_g: number; // 現在残量(g)。マイナスは登録漏れの可能性
+  avg_unit_price: number; // 移動平均g単価(円/g)
+  low_stock_g: number | null; // 残量警告の閾値(g)
+  products: { id: number; name: string; grams: number }[]; // この茶葉を使う商品
+}
+
+export interface MaterialInput {
+  name: string;
+  low_stock_g?: number | null;
+}
+
+export interface MaterialPurchaseDTO {
+  id: number;
+  material_id: number;
+  purchased_on: string; // YYYY-MM-DD
+  quantity_g: number;
+  total_price: number; // 円
+  unit_price: number; // 円/g（この仕入単体）
+  note: string | null;
+}
+
+export interface MaterialPurchaseInput {
+  material_id: number;
+  purchased_on: string;
+  quantity_g: number;
+  total_price: number;
+  note?: string | null;
+}
+
+/** 商品に登録する使用茶葉（1杯あたりg） */
+export interface ProductMaterialInput {
+  material_id: number;
+  grams: number;
+}
+
 // ---- 管理（オーナー） ----
 export interface CategoryLiteDTO {
   id: number;
@@ -308,6 +399,7 @@ export interface AdminProductDTO {
   name: string;
   sub: string | null;
   price: number;
+  cost_price: number | null; // 原価(円/個)。物販カテゴリのみ
   tax_rate: number;
   icon: string | null;
   image: string | null;
@@ -318,6 +410,7 @@ export interface AdminProductDTO {
   has_order_source: boolean;
   show_on_lp: boolean;
   options: ProductOption[];
+  materials: { material_id: number; name: string; grams: number }[]; // 使用茶葉
   sort_order: number;
 }
 
@@ -326,6 +419,7 @@ export interface ProductInput {
   name: string;
   sub: string | null;
   price: number;
+  cost_price?: number | null; // 物販カテゴリのみ有効
   tax_rate?: number;
   icon: string | null;
   stamp: string | null;
@@ -335,6 +429,7 @@ export interface ProductInput {
   has_order_source?: boolean;
   show_on_lp?: boolean;
   options?: ProductOption[];
+  materials?: ProductMaterialInput[]; // キーを送らなければ紐付けは変更されない
 }
 
 export interface TodaySummaryDTO {
@@ -392,6 +487,7 @@ export interface SalesAnalyticsDTO {
   period: Period;
   year: number;
   month: number;
+  category: string | null; // 絞り込み中のカテゴリslug（null=全体）
   available_years: number[];
   total: number;
   rows: TrendRow[];
@@ -424,6 +520,52 @@ export interface CustomerAnalyticsDTO {
   gender: DistSlice[];
   age: DistSlice[];
   by_product: ProductSegmentDTO[];
+}
+
+// ---- 損益分析 ----
+export interface ProfitCategoryRow {
+  label: string;
+  sales: number;
+  cost_auto: number; // 自動計上原価（茶葉・物販）
+  gross: number;
+  margin: number | null;
+  share: number; // 売上構成比(%)
+}
+
+export interface ProfitProductRow {
+  name: string;
+  category: string;
+  qty: number;
+  sales: number;
+  cost_auto: number;
+  gross: number;
+  margin: number | null;
+}
+
+export interface ProfitExpenseRow {
+  category: string; // 名目
+  type: 'cost' | 'expense';
+  amount: number;
+}
+
+export interface ProfitAnalysisDTO {
+  year: number;
+  available_years: number[];
+  summary: {
+    sales: number;
+    cost: number;
+    cost_auto: number;
+    cost_manual: number;
+    gross: number;
+    expense: number;
+    operating: number;
+    gross_margin: number | null;
+    operating_margin: number | null;
+  };
+  monthly: ProfitRow[];
+  categories: ProfitCategoryRow[];
+  products: ProfitProductRow[];
+  expenses: ProfitExpenseRow[];
 }
 
 // ---- 経費管理 ----
@@ -472,7 +614,9 @@ export interface ProfitRow {
   month: number;
   label: string;
   sales: number;
-  cost: number; // 原価
+  cost: number; // 原価 = 自動（茶葉）＋ 手入力
+  cost_auto: number; // 茶葉の自動計上分
+  cost_manual: number; // 経費画面から手入力した原価
   gross: number; // 粗利益 = 売上 − 原価
   expense: number; // 経費
   operating: number; // 営業利益 = 粗利益 − 経費
@@ -482,10 +626,13 @@ export interface ProfitRow {
 
 export interface ProfitDTO {
   year: number;
+  category: string | null; // 絞り込み中のカテゴリslug（null=全体）。カテゴリ別は経費・手入力原価を含まない
   available_years: number[];
   rows: ProfitRow[];
   total_sales: number;
   total_cost: number;
+  total_cost_auto: number;
+  total_cost_manual: number;
   total_gross: number;
   total_expense: number;
   total_operating: number;

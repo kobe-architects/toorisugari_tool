@@ -49,9 +49,19 @@ export function Order() {
   const [pSource, setPSource] = useState<OrderSource>('direct'); // 注文経路（既定: 直注文）
   const [pOpts, setPOpts] = useState<Record<string, string>>({});
   const [region, setRegion] = useState<RegionDTO | null>(null); // 本日の営業地域
+  const [eventName, setEventName] = useState<string | null>(null); // 本日のイベント
 
   useEffect(() => {
-    api.operatingDay.today().then((t) => setRegion(t.region)).catch(() => { /* 補助表示のため無視 */ });
+    api.operatingDay
+      .today()
+      .then((t) => {
+        setRegion(t.region);
+        setEventName(t.event?.name ?? null);
+        // 開店設定（イベント・出店料）が未登録の日は必須にする（登録漏れ防止）
+        if (t.event_fee == null) nav('/open', { replace: true });
+      })
+      .catch(() => { /* 補助表示のため無視 */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -151,6 +161,7 @@ export function Order() {
           <span style={{ fontSize: 12 }}>📍</span>
           <span style={{ fontWeight: 700, color: region ? 'var(--ink)' : 'var(--ink-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {region ? (region.label || region.name) : '営業地域を設定'}
+            {eventName && <span style={{ color: 'var(--ink-soft)' }}> ・ {eventName}</span>}
           </span>
         </button>
       </div>
