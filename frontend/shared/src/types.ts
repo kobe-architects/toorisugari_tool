@@ -320,7 +320,7 @@ export type CalendarEntryStatus = 'applying' | 'confirmed' | null;
 export interface CalendarEntryDTO {
   id: number;
   date: string; // YYYY-MM-DD
-  title: string;
+  title: string | null; // ステータス付きの予定は予定名なしで登録できる
   status: CalendarEntryStatus;
   start_time: string | null; // 'HH:MM'（終日はnull）
   end_time: string | null; // 'HH:MM'
@@ -329,7 +329,7 @@ export interface CalendarEntryDTO {
 
 export interface CalendarEntryInput {
   date: string;
-  title: string;
+  title?: string | null; // status付きなら省略可
   status?: CalendarEntryStatus;
   start_time?: string | null;
   end_time?: string | null;

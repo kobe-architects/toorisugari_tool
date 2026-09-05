@@ -215,6 +215,38 @@
   .btn-cancel{background:transparent; border:1.5px solid var(--line-2); color:var(--ink-soft)}
   .err{color:var(--accent); font-size:12.5px; margin:6px 0}
 
+  /* ---- 日付タップの選択メニュー ---- */
+  .chooser{
+    position:fixed; inset:0; z-index:20; background:rgba(40,28,16,.5);
+    display:flex; align-items:center; justify-content:center; padding:28px;
+    animation:fadeIn .2s ease-out;
+  }
+  .chooser.closing{animation:fadeOut .18s ease-in forwards}
+  .chbox{
+    width:100%; max-width:340px; background:var(--card-2); border-radius:18px;
+    padding:18px 16px 14px; animation:popIn .35s var(--spring);
+    box-shadow:0 12px 34px rgba(58,43,30,.35);
+  }
+  .chbox h4{margin:0 0 4px; font-size:16px; font-weight:800; text-align:center}
+  .chbox .chsub{font-size:11px; color:var(--ink-mute); text-align:center; font-weight:700; margin-bottom:14px}
+  .chbtn{
+    display:flex; width:100%; align-items:center; justify-content:center; gap:8px;
+    border:none; border-radius:12px; padding:14px; margin-bottom:9px;
+    font-size:14.5px; font-weight:800; font-family:inherit;
+    transition:transform .12s var(--spring);
+    animation:fadeUp .3s ease-out backwards;
+  }
+  .chbtn:active{transform:scale(.95)}
+  .chbtn:nth-of-type(1){animation-delay:.03s}
+  .chbtn:nth-of-type(2){animation-delay:.08s}
+  .chbtn:nth-of-type(3){animation-delay:.13s}
+  .chbtn:nth-of-type(4){animation-delay:.18s}
+  .chbtn.plain{background:var(--bar); color:var(--bar-ink)}
+  .chbtn.applying{background:#C08A3E; color:#FFF8EA}
+  .chbtn.confirmed{background:#7A7264; color:#F4F1EA}
+  .chbtn.danger{background:transparent; border:1.5px solid var(--line-2); color:var(--accent)}
+  .chbtn.ghost{background:transparent; color:var(--ink-mute); margin-bottom:0; padding:10px}
+
   /* ---- トースト ---- */
   .toast{
     position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 92px); z-index:30;
@@ -308,6 +340,16 @@
     <button class="fab" id="btnAdd" aria-label="予定を登録">＋</button>
   </div>
 
+  <!-- 日付タップの選択メニュー -->
+  <div id="chooserOv" class="chooser hidden">
+    <div class="chbox">
+      <h4 id="chDate"></h4>
+      <div class="chsub">この日にどうしますか？</div>
+      <div id="chActions"></div>
+      <button class="chbtn ghost" id="chClose">閉じる</button>
+    </div>
+  </div>
+
   <!-- 登録・編集シート -->
   <div id="overlay" class="overlay hidden">
     <div class="sheet" id="sheet">
@@ -319,7 +361,7 @@
         <input class="input" type="date" id="fDate">
       </div>
       <div class="field">
-        <div class="flabel">予定名 <span class="req">必須</span></div>
+        <div class="flabel">予定名 <span class="req" id="titleReq">必須</span></div>
         <input class="input" type="text" id="fTitle" maxlength="120" placeholder="例：◯◯マルシェ出店">
       </div>
       <div class="field">
@@ -414,10 +456,11 @@ let selStaffId = null;
 let pin = '';
 
 const STATUS_LABEL = { applying: '応募中', confirmed: '出店確定' };
+const DISPLAY_TITLE = { applying: '出店応募中', confirmed: '出店確定' }; // 予定名なしの表示用
 const STATUS_HINT = {
   '': '',
-  applying: '応募中の予定は、あとから「出店確定」か「応募取消」にできます。',
-  confirmed: '出店確定にすると、カレンダー上でこの日付がグレーアウトします。',
+  applying: '応募中の予定は、あとから「出店確定」か「応募取消」にできます。予定名は省略できます。',
+  confirmed: '出店確定にすると、カレンダー上でこの日付がグレーアウトします。予定名は省略できます。',
 };
 let monthAnim = '';              // 月送りアニメーション方向 'l' | 'r' | 'f'
 
@@ -556,7 +599,7 @@ function renderGrid() {
       const c = document.createElement('span');
       c.className = 'chip' + (e.status ? ' ' + e.status : '');
       c.style.animationDelay = (j * 0.05) + 's';
-      c.textContent = e.title;
+      c.textContent = e.title || DISPLAY_TITLE[e.status] || '予定';
       cell.appendChild(c);
     });
     if (list.length > 2) {
@@ -569,6 +612,7 @@ function renderGrid() {
       selDate = dateStr;
       if (d.getMonth() !== curM) { curY = d.getFullYear(); curM = d.getMonth(); monthAnim = 'f'; loadMonth(); }
       else { renderGrid(); renderDay(); }
+      openChooser(dateStr); // タップだけで登録メニューを表示
     };
     grid.appendChild(cell);
   }
@@ -582,7 +626,7 @@ function renderDay() {
   const wrap = $('dayList');
   wrap.innerHTML = '';
   if (!list.length) {
-    wrap.innerHTML = '<div class="empty"><img src="walking.gif" alt="">予定はありません。右下の「＋」から登録できます。</div>';
+    wrap.innerHTML = '<div class="empty"><img src="walking.gif" alt="">予定はありません。日付のタップ、または右下の「＋」から登録できます。</div>';
     return;
   }
   list.forEach((e, i) => {
@@ -590,14 +634,92 @@ function renderDay() {
     div.className = 'entry' + (e.status === 'confirmed' ? ' st-confirmed' : '');
     div.style.animationDelay = (i * 0.06) + 's';
     const time = e.start_time ? e.start_time + (e.end_time ? '<br>〜' + e.end_time : '') : '終日';
-    const badge = e.status ? '<span class="badge ' + e.status + '">' + STATUS_LABEL[e.status] + '</span>' : '';
+    // 予定名なしのステータス予定は「出店応募中」等をそのまま予定名として表示
+    const badge = e.status && e.title ? '<span class="badge ' + e.status + '">' + STATUS_LABEL[e.status] + '</span>' : '';
+    const titleText = e.title ? escapeHtml(e.title) : (DISPLAY_TITLE[e.status] || '予定');
     div.innerHTML =
       '<span class="time">' + time + '</span>' +
-      '<span class="body"><span class="title">' + badge + escapeHtml(e.title) + '</span>' +
+      '<span class="body"><span class="title">' + badge + titleText + '</span>' +
       (e.memo ? '<div class="memo">' + escapeHtml(e.memo) + '</div>' : '') + '</span>';
     div.onclick = () => openSheet(e);
     wrap.appendChild(div);
   });
+}
+
+/* ==== 日付タップの選択メニュー ==== */
+function openChooser(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dow = WEEK[new Date(y, m - 1, d).getDay()];
+  $('chDate').textContent = m + '月' + d + '日（' + dow + '）';
+  const wrap = $('chActions');
+  wrap.innerHTML = '';
+  const mk = (cls, label, fn) => {
+    const b = document.createElement('button');
+    b.className = 'chbtn ' + cls;
+    b.textContent = label;
+    b.onclick = fn;
+    wrap.appendChild(b);
+  };
+  mk('plain', '予定を登録', () => { closeChooser(); openSheet(null); });
+  const applying = entriesOf(dateStr).find((e) => e.status === 'applying');
+  const confirmed = entriesOf(dateStr).find((e) => e.status === 'confirmed');
+  if (confirmed) {
+    // すでに出店確定の日 → 取消のみ
+    mk('danger', '出店確定を取消', async () => {
+      if (!confirm((confirmed.title || DISPLAY_TITLE.confirmed) + ' の出店確定を取消しますか？')) return;
+      try {
+        await apiFetch('DELETE', '/calendar-entries/' + confirmed.id);
+        closeChooser();
+        showToast('出店確定を取消しました');
+        loadMonth();
+      } catch (e) { showToast(e.message || 'エラーが発生しました'); }
+    });
+  } else if (applying) {
+    // 応募中の日 → 確定 or 取消
+    mk('confirmed', '出店確定にする', async () => {
+      try {
+        await apiFetch('PATCH', '/calendar-entries/' + applying.id, { status: 'confirmed' });
+        closeChooser();
+        showToast('出店確定にしました');
+        loadMonth();
+      } catch (e) { showToast(e.message || 'エラーが発生しました'); }
+    });
+    mk('danger', '応募を取消', async () => {
+      if (!confirm((applying.title || DISPLAY_TITLE.applying) + ' の応募を取消しますか？')) return;
+      try {
+        await apiFetch('DELETE', '/calendar-entries/' + applying.id);
+        closeChooser();
+        showToast('応募を取消しました');
+        loadMonth();
+      } catch (e) { showToast(e.message || 'エラーが発生しました'); }
+    });
+  } else {
+    // まだステータスのない日 → ワンタップでステータス登録（予定名なし）
+    mk('applying', '出店応募中にする', () => quickStatus(dateStr, 'applying'));
+    mk('confirmed', '出店確定にする', () => quickStatus(dateStr, 'confirmed'));
+  }
+  const ov = $('chooserOv');
+  ov.classList.remove('closing');
+  ov.classList.remove('hidden');
+}
+
+function closeChooser() {
+  const ov = $('chooserOv');
+  if (ov.classList.contains('hidden')) return;
+  ov.classList.add('closing');
+  setTimeout(() => { ov.classList.add('hidden'); ov.classList.remove('closing'); }, 180);
+}
+
+/** 予定名なしのステータス予定をワンタップ登録。 */
+async function quickStatus(dateStr, status) {
+  try {
+    await apiFetch('POST', '/calendar-entries', { date: dateStr, title: null, status });
+    closeChooser();
+    showToast(status === 'applying' ? '出店応募中にしました' : '出店確定にしました');
+    loadMonth();
+  } catch (e) {
+    showToast(e.message || '登録に失敗しました');
+  }
 }
 
 /* ==== 登録・編集シート ==== */
@@ -607,13 +729,15 @@ function setSegStatus(v) {
     b.classList.toggle('on', b.dataset.v === v);
   });
   $('segHint').textContent = STATUS_HINT[v] || '';
+  $('titleReq').textContent = v ? '省略可' : '必須'; // ステータス付きは予定名なしでOK
+  $('titleReq').style.color = v ? 'var(--ink-mute)' : '';
 }
 
 function openSheet(entry) {
   editingEntry = entry || null;
   $('sheetTitle').innerHTML = '<span class="teadot"></span>' + (entry ? '予定を編集' : '予定を登録');
   $('fDate').value = entry ? entry.date : selDate;
-  $('fTitle').value = entry ? entry.title : '';
+  $('fTitle').value = (entry && entry.title) || '';
   $('fStart').value = (entry && entry.start_time) || '';
   $('fEnd').value = (entry && entry.end_time) || '';
   $('fMemo').value = (entry && entry.memo) || '';
@@ -651,13 +775,18 @@ function showToast(msg) {
 async function saveEntry() {
   const date = $('fDate').value;
   const title = $('fTitle').value.trim();
-  if (!date || !title) {
-    $('sheetErr').textContent = '日付と予定名を入力してください。';
+  if (!date) {
+    $('sheetErr').textContent = '日付を入力してください。';
+    return;
+  }
+  if (!title && !fStatus) {
+    $('sheetErr').textContent = '通常の予定は予定名を入力してください。';
     return;
   }
   const start = $('fStart').value || null;
   const input = {
-    date, title,
+    date,
+    title: title || null, // ステータス付きは予定名なしでOK
     status: fStatus || null,
     start_time: start,
     end_time: start ? ($('fEnd').value || null) : null,
@@ -684,7 +813,8 @@ async function saveEntry() {
 async function deleteEntry() {
   if (!editingEntry) return;
   const applying = editingEntry.status === 'applying';
-  const msg = applying ? '「' + editingEntry.title + '」の応募を取消しますか？' : '「' + editingEntry.title + '」を削除しますか？';
+  const name = editingEntry.title || DISPLAY_TITLE[editingEntry.status] || '予定';
+  const msg = applying ? '「' + name + '」の応募を取消しますか？' : '「' + name + '」を削除しますか？';
   if (!confirm(msg)) return;
   try {
     await apiFetch('DELETE', '/calendar-entries/' + editingEntry.id);
@@ -724,6 +854,8 @@ $('btnSave').onclick = saveEntry;
 $('btnDelete').onclick = deleteEntry;
 $('btnConfirmApply').onclick = confirmApplication;
 $('btnCancelApply').onclick = deleteEntry;
+$('chClose').onclick = closeChooser;
+$('chooserOv').onclick = (e) => { if (e.target === $('chooserOv')) closeChooser(); };
 document.querySelectorAll('#segStatus .segbtn').forEach((b) => {
   b.onclick = () => setSegStatus(b.dataset.v);
 });

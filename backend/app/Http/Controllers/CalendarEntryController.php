@@ -58,7 +58,10 @@ class CalendarEntryController extends Controller
 
         return $request->validate([
             'date' => [$required, 'date'],
-            'title' => [$required, 'string', 'max:120'],
+            // ステータス付き（応募中/出店確定）は予定名を省略可。通常の予定は必須
+            'title' => $creating
+                ? ['nullable', 'required_without:status', 'string', 'max:120']
+                : ['sometimes', 'nullable', 'string', 'max:120'],
             'status' => ['nullable', 'in:applying,confirmed'], // null=通常 / 出店応募中 / 出店確定
             'start_time' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
             'end_time' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],

@@ -25,6 +25,12 @@ function chipColors(status: CalendarEntryStatus): { bg: string; fg: string } {
   return { bg: 'var(--bar)', fg: 'var(--bar-ink)' };
 }
 
+/** 予定名（ステータスのみの予定は「出店応募中」等を表示）。 */
+function displayTitle(e: CalendarEntryDTO): string {
+  if (e.title) return e.title;
+  return e.status === 'applying' ? '出店応募中' : e.status === 'confirmed' ? '出店確定' : '予定';
+}
+
 export function CalendarView() {
   const today = ymd(new Date());
   const [cursor, setCursor] = useState(() => {
@@ -137,11 +143,11 @@ export function CalendarView() {
                       <div
                         key={e.id}
                         onClick={(ev) => { ev.stopPropagation(); setEditing(e); }}
-                        title={`${e.status && STATUS_STYLE[e.status] ? `【${STATUS_STYLE[e.status].label}】` : ''}${e.title}${fmtTime(e) ? ` ${fmtTime(e)}` : ''}${e.memo ? `\n${e.memo}` : ''}`}
+                        title={`${e.status && STATUS_STYLE[e.status] ? `【${STATUS_STYLE[e.status].label}】` : ''}${displayTitle(e)}${fmtTime(e) ? ` ${fmtTime(e)}` : ''}${e.memo ? `\n${e.memo}` : ''}`}
                         style={{ padding: '3px 7px', borderRadius: 6, background: col.bg, color: col.fg, fontSize: 11.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', border: e.status === 'applying' ? '1px dashed rgba(255,248,234,0.7)' : 'none' }}
                       >
                         {fmtTime(e) && <span style={{ opacity: 0.75, marginRight: 4, fontSize: 10.5 }}>{e.start_time}</span>}
-                        {e.title}
+                        {displayTitle(e)}
                       </div>
                     );
                   })}
@@ -175,7 +181,8 @@ function EntryEditorModal({ entry, defaultDate, onClose, onSaved }: { entry: Cal
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const valid = date !== '' && title.trim() !== '';
+  // ステータス付き（応募中/出店確定）は予定名を省略できる
+  const valid = date !== '' && (title.trim() !== '' || status !== null);
 
   const save = async () => {
     if (!valid || busy) return;
@@ -184,7 +191,7 @@ function EntryEditorModal({ entry, defaultDate, onClose, onSaved }: { entry: Cal
     try {
       const input = {
         date,
-        title: title.trim(),
+        title: title.trim() || null,
         status,
         start_time: start || null,
         end_time: start && end ? end : null, // 開始なしで終了のみは保存しない
@@ -215,7 +222,8 @@ function EntryEditorModal({ entry, defaultDate, onClose, onSaved }: { entry: Cal
 
   const remove = async () => {
     if (!entry || busy) return;
-    const label = entry.status === 'applying' ? `「${entry.title}」の応募を取消しますか？` : `「${entry.title}」を削除しますか？`;
+    const name = displayTitle(entry);
+    const label = entry.status === 'applying' ? `「${name}」の応募を取消しますか？` : `「${name}」を削除しますか？`;
     if (!confirm(label)) return;
     setBusy(true);
     try {
@@ -240,7 +248,11 @@ function EntryEditorModal({ entry, defaultDate, onClose, onSaved }: { entry: Cal
           <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div className="field">
-          <div className="field-label">予定名 <span className="req">必須</span></div>
+          <div className="field-label">
+            予定名 {status === null
+              ? <span className="req">必須</span>
+              : <span style={{ color: 'var(--ink-mute)', fontWeight: 700 }}>省略可（省略時は「出店応募中」等と表示）</span>}
+          </div>
           <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例：◯◯マルシェ出店 ／ 茶葉の仕入れ" />
         </div>
         <div className="field">
