@@ -312,6 +312,25 @@ export interface OrderListParams {
   dir?: 'asc' | 'desc';
 }
 
+// ---- カレンダー（予定） ----
+/** カレンダーの予定（PC管理コンソール／スマホ版カレンダー共用）。 */
+export interface CalendarEntryDTO {
+  id: number;
+  date: string; // YYYY-MM-DD
+  title: string;
+  start_time: string | null; // 'HH:MM'（終日はnull）
+  end_time: string | null; // 'HH:MM'
+  memo: string | null;
+}
+
+export interface CalendarEntryInput {
+  date: string;
+  title: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  memo?: string | null;
+}
+
 // ---- イベント管理 ----
 /** 出店イベント（期間内の売上・自動原価・出店料を日付で集計）。 */
 export interface EventDTO {

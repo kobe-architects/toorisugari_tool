@@ -19,6 +19,8 @@ import type {
   EventsResponse,
   BreakEvenDTO,
   BudgetSaveResult,
+  CalendarEntryDTO,
+  CalendarEntryInput,
   MaterialDTO,
   MaterialInput,
   MaterialPurchaseDTO,
@@ -129,6 +131,16 @@ export const api = {
     search: (q: string) => request<{ results: GeocodeCandidate[] }>('GET', `/geo/search?q=${encodeURIComponent(q)}`),
     /** GPS座標 → 地域。 */
     reverse: (lat: number, lon: number) => request<ReverseGeocodeDTO>('GET', `/geo/reverse?lat=${lat}&lon=${lon}`),
+  },
+
+  // ---- カレンダー（予定・ログイン必須／PC・スマホ共用） ----
+  calendar: {
+    /** 月の予定一覧（前後7日を含む）。month は 'YYYY-MM'。 */
+    list: (month: string) => request<CalendarEntryDTO[]>('GET', `/calendar-entries?month=${month}`),
+    create: (input: CalendarEntryInput) => request<CalendarEntryDTO>('POST', '/calendar-entries', input),
+    update: (id: number, patch: Partial<CalendarEntryInput>) =>
+      request<CalendarEntryDTO>('PATCH', `/calendar-entries/${id}`, patch),
+    remove: (id: number) => request<void>('DELETE', `/calendar-entries/${id}`),
   },
 
   // ---- 営業日の設定（POSレジ・ログイン必須） ----

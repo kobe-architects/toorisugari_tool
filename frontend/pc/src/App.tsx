@@ -9,6 +9,7 @@ import { OrderView } from './views/OrderView';
 import { RegisterView } from './views/RegisterView';
 import { InventoryView } from './views/InventoryView';
 import { EventsView } from './views/EventsView';
+import { CalendarView } from './views/CalendarView';
 import { LpView } from './views/LpView';
 import { SystemSettingsView } from './views/SystemSettingsView';
 
@@ -29,6 +30,7 @@ export function App() {
           <Route element={<Guard><Layout /></Guard>}>
             <Route path="/" element={<SalesAdminPage />} />
             <Route path="/events" element={<EventsView />} />
+            <Route path="/calendar" element={<CalendarView />} />
             <Route path="/customer" element={<CustomerView />} />
             <Route path="/orders" element={<OrderView />} />
             <Route path="/register" element={<RegisterView />} />

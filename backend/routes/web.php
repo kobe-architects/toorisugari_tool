@@ -33,3 +33,7 @@ Route::get('/pos/{any}', fn () => $serveSpa('pos'))->where('any', '.*');
 
 Route::get('/pc', fn () => $serveSpa('pc'));
 Route::get('/pc/{any}', fn () => $serveSpa('pc'))->where('any', '.*');
+
+// スマホ版カレンダー（public/cal/ の静的PWA。実ファイルはWebサーバ直配信、これはフォールバック）
+Route::get('/cal', fn () => $serveSpa('cal'));
+Route::get('/cal/{any}', fn () => $serveSpa('cal'))->where('any', '.*');

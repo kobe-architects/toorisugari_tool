@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CalendarEntryController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
@@ -83,6 +84,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // ジオコーディング（POS・PC共用）と営業日の地域設定（POS）
     Route::get('/geo/search', [GeoController::class, 'search']);
     Route::get('/geo/reverse', [GeoController::class, 'reverse']);
+    // カレンダー（予定）。PC管理コンソール／スマホ版カレンダー共用（スタッフPINでも利用可）
+    Route::get('/calendar-entries', [CalendarEntryController::class, 'index']);
+    Route::post('/calendar-entries', [CalendarEntryController::class, 'store']);
+    Route::patch('/calendar-entries/{entry}', [CalendarEntryController::class, 'update']);
+    Route::delete('/calendar-entries/{entry}', [CalendarEntryController::class, 'destroy']);
+
     Route::get('/operating-day/today', [OperatingDayController::class, 'today']);
     Route::get('/operating-day/event-options', [OperatingDayController::class, 'eventOptions']);
     Route::post('/operating-day', [OperatingDayController::class, 'store']);
