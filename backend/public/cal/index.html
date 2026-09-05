@@ -17,6 +17,7 @@
     --ink:#3A2B1E; --ink-soft:#6E5944; --ink-mute:#97836A;
     --line:rgba(58,43,30,.16); --line-2:rgba(58,43,30,.30);
     --bar:#3C2C1D; --bar-ink:#F3EAD6; --accent:#B0402E; --blue:#3E5C76;
+    --spring:cubic-bezier(.34,1.56,.64,1);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{margin:0; padding:0; height:100%}
@@ -27,14 +28,34 @@
   }
   #app{display:flex; flex-direction:column; min-height:100dvh}
   button{font-family:inherit}
+  img{-webkit-user-drag:none; user-select:none}
+
+  /* ==== アニメーション ==== */
+  @keyframes fadeUp{from{opacity:0; transform:translateY(14px)}to{opacity:1; transform:none}}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes fadeOut{from{opacity:1}to{opacity:0}}
+  @keyframes popIn{0%{opacity:0; transform:scale(.5)}70%{transform:scale(1.08)}100%{opacity:1; transform:scale(1)}}
+  @keyframes chipIn{from{opacity:0; transform:scale(.8) translateY(3px)}to{opacity:1; transform:none}}
+  @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+  @keyframes sheetDown{from{transform:none}to{transform:translateY(105%)}}
+  @keyframes slideL{from{opacity:0; transform:translateX(26px)}to{opacity:1; transform:none}}
+  @keyframes slideR{from{opacity:0; transform:translateX(-26px)}to{opacity:1; transform:none}}
+  @keyframes dotPop{0%{transform:scale(.4)}60%{transform:scale(1.35)}100%{transform:scale(1)}}
+  @keyframes toastIn{0%{opacity:0; transform:translate(-50%,20px) scale(.9)}60%{transform:translate(-50%,-4px) scale(1.02)}100%{opacity:1; transform:translate(-50%,0) scale(1)}}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  @keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-6deg)}75%{transform:rotate(6deg)}}
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important}
+  }
 
   /* ---- ヘッダー ---- */
   .topbar{
     position:sticky; top:0; z-index:10; background:var(--bar); color:var(--bar-ink);
-    padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;
+    padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;
     display:flex; align-items:center; gap:10px;
   }
-  .topbar .brand{font-size:15px; font-weight:800; letter-spacing:.06em}
+  .topbar .brandlogo{height:30px; display:block}
+  .topbar .brandsub{font-size:10px; letter-spacing:.18em; opacity:.65; font-weight:700; margin-top:2px}
   .topbar .who{margin-left:auto; font-size:11px; opacity:.7}
   .topbar .logout{background:transparent; border:none; color:var(--bar-ink); opacity:.75; font-size:11px; padding:6px 4px}
 
@@ -44,10 +65,12 @@
   .navbtn{
     background:var(--card); border:1px solid var(--line-2); border-radius:10px;
     color:var(--ink-soft); font-size:14px; font-weight:800; padding:9px 14px;
+    transition:transform .15s var(--spring), background .15s;
   }
-  .navbtn:active{background:var(--paper-2)}
+  .navbtn:active{background:var(--paper-2); transform:scale(.92)}
 
   /* ---- カレンダー ---- */
+  .calwrap{overflow:hidden}
   .weekhead{display:grid; grid-template-columns:repeat(7,1fr); padding:0 8px}
   .weekhead span{text-align:center; font-size:10.5px; font-weight:800; letter-spacing:.15em; color:var(--ink-mute); padding:4px 0}
   .weekhead span:first-child{color:var(--accent)}
@@ -57,9 +80,13 @@
     margin:0 8px 10px; border-left:1px solid var(--line); border-top:1px solid var(--line);
     background:var(--card); border-radius:0 0 8px 8px; overflow:hidden;
   }
+  .grid.anim-l{animation:slideL .3s ease-out}
+  .grid.anim-r{animation:slideR .3s ease-out}
+  .grid.anim-f{animation:fadeIn .3s ease-out}
   .cell{
     min-height:64px; padding:3px 2px 4px; border-right:1px solid var(--line); border-bottom:1px solid var(--line);
     display:flex; flex-direction:column; align-items:stretch; gap:2px;
+    transition:background .2s;
   }
   .cell.out{opacity:.45; background:rgba(58,43,30,.05)}
   .cell.sel{outline:2px solid var(--accent); outline-offset:-2px; background:var(--card-2)}
@@ -67,13 +94,16 @@
     align-self:center; width:22px; height:22px; border-radius:50%;
     display:flex; align-items:center; justify-content:center;
     font-size:11.5px; font-weight:800; color:var(--ink-soft);
+    transition:transform .15s var(--spring);
   }
+  .cell:active .d{transform:scale(1.25)}
   .cell .d.sun{color:var(--accent)}
   .cell .d.sat{color:var(--blue)}
   .cell .d.today{background:var(--accent); color:#fff}
   .chip{
     font-size:9px; font-weight:700; line-height:1.25; color:var(--bar-ink); background:var(--bar);
     border-radius:4px; padding:2px 3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    animation:chipIn .25s var(--spring) backwards;
   }
   .more{font-size:9px; color:var(--ink-mute); text-align:center; font-weight:700}
 
@@ -83,12 +113,16 @@
   .entry{
     background:var(--card-2); border:1px solid var(--line); border-radius:12px;
     padding:11px 14px; margin-bottom:8px; display:flex; gap:10px; align-items:flex-start;
+    animation:fadeUp .3s ease-out backwards;
+    transition:transform .15s;
   }
+  .entry:active{transform:scale(.98)}
   .entry .time{font-size:11.5px; font-weight:800; color:var(--accent); min-width:44px; padding-top:2px; letter-spacing:.02em}
   .entry .body{flex:1; min-width:0}
   .entry .title{font-size:14.5px; font-weight:800}
   .entry .memo{font-size:12px; color:var(--ink-mute); margin-top:2px; white-space:pre-wrap; word-break:break-word}
-  .empty{padding:22px 0; text-align:center; color:var(--ink-mute); font-size:12.5px}
+  .empty{padding:16px 0 8px; text-align:center; color:var(--ink-mute); font-size:12.5px; animation:fadeIn .4s ease-out}
+  .empty img{width:64px; opacity:.55; display:block; margin:0 auto 6px}
 
   /* ---- 追加ボタン ---- */
   .fab{
@@ -96,60 +130,98 @@
     width:58px; height:58px; border-radius:50%; border:none; background:var(--accent); color:#fff;
     font-size:30px; font-weight:400; line-height:1; box-shadow:0 6px 18px rgba(58,43,30,.35);
     display:flex; align-items:center; justify-content:center;
+    animation:popIn .45s var(--spring) .25s backwards;
+    transition:transform .15s var(--spring);
   }
-  .fab:active{transform:scale(.95)}
+  .fab:active{transform:scale(.88) rotate(90deg)}
 
-  /* ---- モーダル（登録・編集） ---- */
+  /* ---- モーダル（登録・編集シート） ---- */
   .overlay{
     position:fixed; inset:0; z-index:20; background:rgba(40,28,16,.5);
     display:flex; align-items:flex-end; justify-content:center;
+    animation:fadeIn .25s ease-out;
   }
+  .overlay.closing{animation:fadeOut .22s ease-in forwards}
   .sheet{
     width:100%; max-width:520px; background:var(--card-2); border-radius:18px 18px 0 0;
-    padding:18px 18px calc(env(safe-area-inset-bottom) + 18px); max-height:88dvh; overflow-y:auto;
+    padding:10px 18px calc(env(safe-area-inset-bottom) + 18px); max-height:88dvh; overflow-y:auto;
+    animation:sheetUp .4s var(--spring);
+    position:relative;
   }
-  .sheet h3{margin:0 0 14px; font-size:17px; font-weight:800}
-  .field{margin-bottom:12px}
+  .overlay.closing .sheet{animation:sheetDown .22s ease-in forwards}
+  .sheet .grab{width:40px; height:4px; border-radius:2px; background:var(--line-2); margin:0 auto 12px}
+  .sheet .walker{
+    position:absolute; top:-44px; right:16px; width:44px; pointer-events:none;
+    filter:drop-shadow(0 2px 3px rgba(58,43,30,.25));
+    animation:floaty 2.6s ease-in-out infinite;
+  }
+  .sheet h3{margin:0 0 14px; font-size:17px; font-weight:800; display:flex; align-items:center; gap:8px}
+  .sheet h3 .teadot{width:10px; height:10px; border-radius:50%; background:var(--accent); display:inline-block; animation:dotPop .4s var(--spring)}
+  .field{margin-bottom:12px; animation:fadeUp .35s ease-out backwards}
+  .field:nth-of-type(1){animation-delay:.04s}.field:nth-of-type(2){animation-delay:.08s}
+  .row .field{animation-delay:.12s}
   .flabel{font-size:11px; font-weight:800; color:var(--ink-mute); letter-spacing:.08em; margin-bottom:5px}
   .flabel .req{color:var(--accent)}
   .input{
     width:100%; border:1.5px solid var(--line-2); border-radius:10px; background:#fff;
     padding:11px 12px; font-size:16px; color:var(--ink); font-family:inherit;
+    transition:border-color .2s, box-shadow .2s;
   }
-  .input:focus{outline:none; border-color:var(--ink-soft)}
+  .input:focus{outline:none; border-color:var(--ink-soft); box-shadow:0 0 0 3px rgba(110,89,68,.15)}
   textarea.input{resize:vertical}
   .row{display:flex; gap:10px}
   .row>.field{flex:1}
   .actions{display:flex; gap:10px; margin-top:16px}
-  .btn{border:none; border-radius:12px; padding:13px 18px; font-size:14.5px; font-weight:800}
+  .btn{border:none; border-radius:12px; padding:13px 18px; font-size:14.5px; font-weight:800; transition:transform .15s var(--spring), opacity .2s}
+  .btn:active{transform:scale(.94)}
   .btn-save{flex:1; background:var(--bar); color:var(--bar-ink)}
   .btn-save:disabled{opacity:.45}
   .btn-del{background:transparent; border:1.5px solid var(--line-2); color:var(--accent)}
   .btn-cancel{background:transparent; border:1.5px solid var(--line-2); color:var(--ink-soft)}
   .err{color:var(--accent); font-size:12.5px; margin:6px 0}
 
+  /* ---- トースト ---- */
+  .toast{
+    position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 92px); z-index:30;
+    transform:translate(-50%,0);
+    background:var(--bar); color:var(--bar-ink); font-size:13px; font-weight:800;
+    padding:10px 18px; border-radius:999px; box-shadow:0 6px 18px rgba(58,43,30,.3);
+    display:flex; align-items:center; gap:8px;
+    animation:toastIn .45s var(--spring);
+  }
+  .toast img{width:22px}
+  .toast.hide{transition:opacity .3s, transform .3s; opacity:0; transform:translate(-50%,10px)}
+
   /* ---- ログイン ---- */
-  .login{flex:1; display:flex; flex-direction:column; align-items:center; padding:40px 24px}
-  .login .mark{font-size:26px; font-weight:800; letter-spacing:.2em; margin:18px 0 4px}
-  .login .sub{font-size:11px; color:var(--ink-mute); letter-spacing:.25em; margin-bottom:30px}
+  .login{flex:1; display:flex; flex-direction:column; align-items:center; padding:34px 24px}
+  .login .hero{width:96px; margin-bottom:6px; animation:fadeUp .5s ease-out backwards}
+  .login .logoimg{width:min(78vw,300px); display:block; animation:fadeUp .5s ease-out .12s backwards}
+  .login .sub{font-size:11px; color:var(--ink-mute); letter-spacing:.35em; font-weight:800; margin:10px 0 26px; animation:fadeUp .5s ease-out .22s backwards}
   .stafflist{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-bottom:26px}
   .staff{
     border:none; background:var(--card-2); border-radius:14px; padding:14px 10px; width:88px;
     display:flex; flex-direction:column; align-items:center; gap:8px; box-shadow:0 2px 8px rgba(58,43,30,.12);
+    animation:fadeUp .4s var(--spring) backwards;
+    transition:transform .15s var(--spring), outline-color .15s;
   }
+  .staff:active{transform:scale(.93)}
   .staff .av{width:44px; height:44px; border-radius:50%; background:var(--bar); color:var(--bar-ink); display:flex; align-items:center; justify-content:center; font-size:19px}
   .staff .nm{font-size:12.5px; font-weight:800; color:var(--ink)}
   .staff.sel{outline:2.5px solid var(--accent)}
+  .staff.sel .av{animation:wobble .4s ease-in-out}
+  .loadwalk{width:70px; opacity:.7; margin:10px auto; display:block; animation:fadeIn .3s}
   .pinrow{display:flex; gap:12px; margin:6px 0 18px}
-  .pindot{width:14px; height:14px; border-radius:50%; border:2px solid var(--ink-soft)}
-  .pindot.on{background:var(--ink); border-color:var(--ink)}
+  .pindot{width:14px; height:14px; border-radius:50%; border:2px solid var(--ink-soft); transition:background .15s}
+  .pindot.on{background:var(--ink); border-color:var(--ink); animation:dotPop .3s var(--spring)}
   .pinpad{display:grid; grid-template-columns:repeat(3,72px); gap:12px}
   .pinkey{
     height:64px; border-radius:50%; border:none; background:var(--card-2); color:var(--ink);
     font-size:22px; font-weight:800; box-shadow:0 2px 8px rgba(58,43,30,.12);
+    transition:transform .12s var(--spring), background .12s;
   }
-  .pinkey:active{background:var(--paper-2)}
+  .pinkey:active{background:var(--paper-2); transform:scale(.9)}
   .pinkey.ghost{background:transparent; box-shadow:none; font-size:14px; color:var(--ink-mute)}
+  #pinArea{animation:fadeUp .35s var(--spring)}
   .hidden{display:none!important}
 </style>
 </head>
@@ -158,7 +230,8 @@
 
   <!-- ログイン画面 -->
   <div id="login" class="login hidden">
-    <div class="mark">和紅茶</div>
+    <img class="hero" src="walking.gif" alt="">
+    <img class="logoimg" src="logo.png" alt="とおりすがりの和紅茶">
     <div class="sub">予定カレンダー</div>
     <div id="staffList" class="stafflist"></div>
     <div id="pinArea" class="hidden" style="display:flex; flex-direction:column; align-items:center">
@@ -171,7 +244,10 @@
   <!-- カレンダー画面 -->
   <div id="main" class="hidden" style="display:flex; flex-direction:column; flex:1">
     <div class="topbar">
-      <span class="brand">予定カレンダー</span>
+      <div>
+        <img class="brandlogo" src="logo-cream.png" alt="とおりすがりの和紅茶">
+        <div class="brandsub">予定カレンダー</div>
+      </div>
       <span class="who" id="whoami"></span>
       <button class="logout" id="btnLogout">ログアウト</button>
     </div>
@@ -181,8 +257,10 @@
       <button class="navbtn" id="btnNext">▶</button>
       <button class="navbtn" id="btnToday" style="font-size:12px">今日</button>
     </div>
-    <div class="weekhead"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
-    <div class="grid" id="grid"></div>
+    <div class="calwrap">
+      <div class="weekhead"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
+      <div class="grid" id="grid"></div>
+    </div>
     <div class="daypane">
       <h2 id="dayLabel"></h2>
       <div id="dayList"></div>
@@ -193,7 +271,9 @@
   <!-- 登録・編集シート -->
   <div id="overlay" class="overlay hidden">
     <div class="sheet" id="sheet">
-      <h3 id="sheetTitle">予定を登録</h3>
+      <img class="walker" src="walking.gif" alt="">
+      <div class="grab"></div>
+      <h3 id="sheetTitle"><span class="teadot"></span>予定を登録</h3>
       <div class="field">
         <div class="flabel">日付 <span class="req">必須</span></div>
         <input class="input" type="date" id="fDate">
@@ -212,7 +292,7 @@
           <input class="input" type="time" id="fEnd">
         </div>
       </div>
-      <div class="field">
+      <div class="field" style="animation-delay:.16s">
         <div class="flabel">メモ（任意）</div>
         <textarea class="input" id="fMemo" rows="3" maxlength="500"></textarea>
       </div>
@@ -277,6 +357,7 @@ let entries = [];                // 表示中の月の予定
 let editingEntry = null;         // 編集中（nullなら新規）
 let selStaffId = null;
 let pin = '';
+let monthAnim = '';              // 月送りアニメーション方向 'l' | 'r' | 'f'
 
 const $ = (id) => document.getElementById(id);
 
@@ -292,13 +373,14 @@ function showLogin() {
 
 async function loadStaff() {
   const list = $('staffList');
-  list.innerHTML = '<div class="empty">読み込み中…</div>';
+  list.innerHTML = '<img class="loadwalk" src="walking.gif" alt="読み込み中">';
   try {
     const staff = await apiFetch('GET', '/staff');
     list.innerHTML = '';
-    staff.forEach((s) => {
+    staff.forEach((s, i) => {
       const b = document.createElement('button');
       b.className = 'staff';
+      b.style.animationDelay = (0.3 + i * 0.07) + 's';
       b.innerHTML = '<span class="av">' + escapeHtml(s.initial || s.name[0]) + '</span><span class="nm">' + escapeHtml(s.name) + '</span>';
       b.onclick = () => {
         selStaffId = s.id; pin = '';
@@ -387,6 +469,13 @@ function entriesOf(date) {
 function renderGrid() {
   const grid = $('grid');
   grid.innerHTML = '';
+  // 月送り方向に合わせてスライドイン
+  grid.classList.remove('anim-l', 'anim-r', 'anim-f');
+  if (monthAnim) {
+    void grid.offsetWidth; // reflowでアニメーション再発火
+    grid.classList.add('anim-' + monthAnim);
+    monthAnim = '';
+  }
   const first = new Date(curY, curM, 1);
   const start = new Date(curY, curM, 1 - first.getDay());
   const todayStr = ymd(new Date());
@@ -400,9 +489,10 @@ function renderGrid() {
     num.textContent = d.getDate();
     cell.appendChild(num);
     const list = entriesOf(dateStr);
-    list.slice(0, 2).forEach((e) => {
+    list.slice(0, 2).forEach((e, j) => {
       const c = document.createElement('span');
       c.className = 'chip';
+      c.style.animationDelay = (j * 0.05) + 's';
       c.textContent = e.title;
       cell.appendChild(c);
     });
@@ -414,7 +504,7 @@ function renderGrid() {
     }
     cell.onclick = () => {
       selDate = dateStr;
-      if (d.getMonth() !== curM) { curY = d.getFullYear(); curM = d.getMonth(); loadMonth(); }
+      if (d.getMonth() !== curM) { curY = d.getFullYear(); curM = d.getMonth(); monthAnim = 'f'; loadMonth(); }
       else { renderGrid(); renderDay(); }
     };
     grid.appendChild(cell);
@@ -429,12 +519,13 @@ function renderDay() {
   const wrap = $('dayList');
   wrap.innerHTML = '';
   if (!list.length) {
-    wrap.innerHTML = '<div class="empty">予定はありません。右下の「＋」から登録できます。</div>';
+    wrap.innerHTML = '<div class="empty"><img src="walking.gif" alt="">予定はありません。右下の「＋」から登録できます。</div>';
     return;
   }
-  list.forEach((e) => {
+  list.forEach((e, i) => {
     const div = document.createElement('div');
     div.className = 'entry';
+    div.style.animationDelay = (i * 0.06) + 's';
     const time = e.start_time ? e.start_time + (e.end_time ? '<br>〜' + e.end_time : '') : '終日';
     div.innerHTML =
       '<span class="time">' + time + '</span>' +
@@ -448,7 +539,7 @@ function renderDay() {
 /* ==== 登録・編集シート ==== */
 function openSheet(entry) {
   editingEntry = entry || null;
-  $('sheetTitle').textContent = entry ? '予定を編集' : '予定を登録';
+  $('sheetTitle').innerHTML = '<span class="teadot"></span>' + (entry ? '予定を編集' : '予定を登録');
   $('fDate').value = entry ? entry.date : selDate;
   $('fTitle').value = entry ? entry.title : '';
   $('fStart').value = (entry && entry.start_time) || '';
@@ -456,12 +547,29 @@ function openSheet(entry) {
   $('fMemo').value = (entry && entry.memo) || '';
   $('sheetErr').textContent = '';
   $('btnDelete').classList.toggle('hidden', !entry);
-  $('overlay').classList.remove('hidden');
+  const ov = $('overlay');
+  ov.classList.remove('closing');
+  ov.classList.remove('hidden');
 }
 
 function closeSheet() {
-  $('overlay').classList.add('hidden');
-  editingEntry = null;
+  const ov = $('overlay');
+  if (ov.classList.contains('hidden')) return;
+  ov.classList.add('closing');
+  setTimeout(() => {
+    ov.classList.add('hidden');
+    ov.classList.remove('closing');
+    editingEntry = null;
+  }, 230);
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = '<img src="walking.gif" alt="">' + escapeHtml(msg);
+  document.body.appendChild(t);
+  setTimeout(() => t.classList.add('hide'), 1600);
+  setTimeout(() => t.remove(), 2000);
 }
 
 async function saveEntry() {
@@ -487,6 +595,7 @@ async function saveEntry() {
     const d = new Date(date + 'T00:00:00');
     curY = d.getFullYear(); curM = d.getMonth();
     closeSheet();
+    showToast('保存しました');
     loadMonth();
   } catch (e) {
     $('sheetErr').textContent = e.message || '保存に失敗しました。';
@@ -501,6 +610,7 @@ async function deleteEntry() {
   try {
     await apiFetch('DELETE', '/calendar-entries/' + editingEntry.id);
     closeSheet();
+    showToast('削除しました');
     loadMonth();
   } catch (e) {
     $('sheetErr').textContent = e.message || '削除に失敗しました。';
@@ -513,9 +623,9 @@ function escapeHtml(s) {
 }
 
 /* ==== イベント ==== */
-$('btnPrev').onclick = () => { const d = new Date(curY, curM - 1, 1); curY = d.getFullYear(); curM = d.getMonth(); loadMonth(); };
-$('btnNext').onclick = () => { const d = new Date(curY, curM + 1, 1); curY = d.getFullYear(); curM = d.getMonth(); loadMonth(); };
-$('btnToday').onclick = () => { const t = new Date(); curY = t.getFullYear(); curM = t.getMonth(); selDate = ymd(t); loadMonth(); };
+$('btnPrev').onclick = () => { const d = new Date(curY, curM - 1, 1); curY = d.getFullYear(); curM = d.getMonth(); monthAnim = 'r'; loadMonth(); };
+$('btnNext').onclick = () => { const d = new Date(curY, curM + 1, 1); curY = d.getFullYear(); curM = d.getMonth(); monthAnim = 'l'; loadMonth(); };
+$('btnToday').onclick = () => { const t = new Date(); curY = t.getFullYear(); curM = t.getMonth(); selDate = ymd(t); monthAnim = 'f'; loadMonth(); };
 $('btnAdd').onclick = () => openSheet(null);
 $('btnCancel').onclick = closeSheet;
 $('btnSave').onclick = saveEntry;
