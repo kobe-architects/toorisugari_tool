@@ -313,11 +313,15 @@ export interface OrderListParams {
 }
 
 // ---- カレンダー（予定） ----
+/** 予定の種別ステータス。null=通常の予定 / applying=出店応募中 / confirmed=出店確定。 */
+export type CalendarEntryStatus = 'applying' | 'confirmed' | null;
+
 /** カレンダーの予定（PC管理コンソール／スマホ版カレンダー共用）。 */
 export interface CalendarEntryDTO {
   id: number;
   date: string; // YYYY-MM-DD
   title: string;
+  status: CalendarEntryStatus;
   start_time: string | null; // 'HH:MM'（終日はnull）
   end_time: string | null; // 'HH:MM'
   memo: string | null;
@@ -326,6 +330,7 @@ export interface CalendarEntryDTO {
 export interface CalendarEntryInput {
   date: string;
   title: string;
+  status?: CalendarEntryStatus;
   start_time?: string | null;
   end_time?: string | null;
   memo?: string | null;

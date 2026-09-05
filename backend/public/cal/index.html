@@ -100,12 +100,22 @@
   .cell .d.sun{color:var(--accent)}
   .cell .d.sat{color:var(--blue)}
   .cell .d.today{background:var(--accent); color:#fff}
+  .cell.cf{background:rgba(90,82,68,.20)}            /* 出店確定日はグレーアウト */
+  .cell.cf .d.sun, .cell.cf .d.sat, .cell.cf .d{color:var(--ink-mute)}
+  .cell.cf .d.today{background:var(--accent); color:#fff}
   .chip{
     font-size:9px; font-weight:700; line-height:1.25; color:var(--bar-ink); background:var(--bar);
     border-radius:4px; padding:2px 3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     animation:chipIn .25s var(--spring) backwards;
   }
+  .chip.applying{background:#C08A3E; color:#FFF8EA; border:1px dashed rgba(255,248,234,.7)}
+  .chip.confirmed{background:#7A7264; color:#F4F1EA}
   .more{font-size:9px; color:var(--ink-mute); text-align:center; font-weight:700}
+
+  /* ---- 凡例 ---- */
+  .legend{display:flex; gap:12px; justify-content:center; padding:0 12px 8px; font-size:10px; font-weight:700; color:var(--ink-soft)}
+  .legend span{display:inline-flex; align-items:center; gap:4px}
+  .legend i{width:10px; height:10px; border-radius:3px; display:inline-block}
 
   /* ---- 選択日の予定一覧 ---- */
   .daypane{flex:1; padding:2px 12px calc(env(safe-area-inset-bottom) + 84px)}
@@ -120,6 +130,10 @@
   .entry .time{font-size:11.5px; font-weight:800; color:var(--accent); min-width:44px; padding-top:2px; letter-spacing:.02em}
   .entry .body{flex:1; min-width:0}
   .entry .title{font-size:14.5px; font-weight:800}
+  .entry.st-confirmed{background:rgba(122,114,100,.16); border-color:rgba(122,114,100,.4)}
+  .badge{display:inline-block; font-size:9.5px; font-weight:800; border-radius:5px; padding:2px 6px; margin-right:6px; vertical-align:2px}
+  .badge.applying{background:#C08A3E; color:#FFF8EA}
+  .badge.confirmed{background:#7A7264; color:#F4F1EA}
   .entry .memo{font-size:12px; color:var(--ink-mute); margin-top:2px; white-space:pre-wrap; word-break:break-word}
   .empty{padding:16px 0 8px; text-align:center; color:var(--ink-mute); font-size:12.5px; animation:fadeIn .4s ease-out}
   .empty img{width:64px; opacity:.55; display:block; margin:0 auto 6px}
@@ -171,6 +185,27 @@
   textarea.input{resize:vertical}
   .row{display:flex; gap:10px}
   .row>.field{flex:1}
+  .seg{display:flex; gap:8px}
+  .segbtn{
+    flex:1; padding:10px 4px; border-radius:10px; font-size:12.5px; font-weight:800;
+    border:1.5px solid var(--line-2); background:transparent; color:var(--ink-soft);
+    transition:transform .12s var(--spring), background .15s, color .15s;
+  }
+  .segbtn:active{transform:scale(.94)}
+  .segbtn.on{border-color:transparent; color:#FFF8EA}
+  .segbtn.on[data-v=""]{background:var(--bar)}
+  .segbtn.on[data-v="applying"]{background:#C08A3E}
+  .segbtn.on[data-v="confirmed"]{background:#7A7264}
+  .seghint{font-size:10.5px; color:var(--ink-mute); margin-top:5px; min-height:14px}
+  .applybar{
+    display:flex; gap:8px; align-items:center; padding:10px 12px; border-radius:10px;
+    background:rgba(192,138,62,.14); border:1px dashed #C08A3E; margin-bottom:12px;
+    animation:fadeUp .3s ease-out;
+  }
+  .applybar .txt{font-size:11.5px; font-weight:800; color:#8A6227; flex:1}
+  .applybar button{border:none; border-radius:9px; padding:9px 12px; font-size:12px; font-weight:800}
+  .applybar .ok{background:var(--accent); color:#fff}
+  .applybar .ng{background:transparent; border:1.5px solid var(--line-2); color:var(--accent)}
   .actions{display:flex; gap:10px; margin-top:16px}
   .btn{border:none; border-radius:12px; padding:13px 18px; font-size:14.5px; font-weight:800; transition:transform .15s var(--spring), opacity .2s}
   .btn:active{transform:scale(.94)}
@@ -261,6 +296,11 @@
       <div class="weekhead"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
       <div class="grid" id="grid"></div>
     </div>
+    <div class="legend">
+      <span><i style="background:var(--bar)"></i>通常の予定</span>
+      <span><i style="background:#C08A3E"></i>出店応募中</span>
+      <span><i style="background:#7A7264"></i>出店確定（日付グレー）</span>
+    </div>
     <div class="daypane">
       <h2 id="dayLabel"></h2>
       <div id="dayList"></div>
@@ -281,6 +321,20 @@
       <div class="field">
         <div class="flabel">予定名 <span class="req">必須</span></div>
         <input class="input" type="text" id="fTitle" maxlength="120" placeholder="例：◯◯マルシェ出店">
+      </div>
+      <div class="field">
+        <div class="flabel">種別</div>
+        <div class="seg" id="segStatus">
+          <button class="segbtn" data-v="">通常の予定</button>
+          <button class="segbtn" data-v="applying">出店応募中</button>
+          <button class="segbtn" data-v="confirmed">出店確定</button>
+        </div>
+        <div class="seghint" id="segHint"></div>
+      </div>
+      <div class="applybar hidden" id="applyBar">
+        <span class="txt">出店応募中です</span>
+        <button class="ok" id="btnConfirmApply">出店確定にする</button>
+        <button class="ng" id="btnCancelApply">応募を取消</button>
       </div>
       <div class="row">
         <div class="field">
@@ -355,8 +409,16 @@ let curM = now.getMonth();       // 0-11
 let selDate = ymd(now);          // 選択中の日付
 let entries = [];                // 表示中の月の予定
 let editingEntry = null;         // 編集中（nullなら新規）
+let fStatus = '';                // シートで選択中の種別 '' | 'applying' | 'confirmed'
 let selStaffId = null;
 let pin = '';
+
+const STATUS_LABEL = { applying: '応募中', confirmed: '出店確定' };
+const STATUS_HINT = {
+  '': '',
+  applying: '応募中の予定は、あとから「出店確定」か「応募取消」にできます。',
+  confirmed: '出店確定にすると、カレンダー上でこの日付がグレーアウトします。',
+};
 let monthAnim = '';              // 月送りアニメーション方向 'l' | 'r' | 'f'
 
 const $ = (id) => document.getElementById(id);
@@ -483,7 +545,8 @@ function renderGrid() {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const dateStr = ymd(d);
     const cell = document.createElement('div');
-    cell.className = 'cell' + (d.getMonth() !== curM ? ' out' : '') + (dateStr === selDate ? ' sel' : '');
+    const confirmedDay = entriesOf(dateStr).some((e) => e.status === 'confirmed'); // 出店確定日はグレー
+    cell.className = 'cell' + (d.getMonth() !== curM ? ' out' : '') + (dateStr === selDate ? ' sel' : '') + (confirmedDay ? ' cf' : '');
     const num = document.createElement('span');
     num.className = 'd' + (d.getDay() === 0 ? ' sun' : d.getDay() === 6 ? ' sat' : '') + (dateStr === todayStr ? ' today' : '');
     num.textContent = d.getDate();
@@ -491,7 +554,7 @@ function renderGrid() {
     const list = entriesOf(dateStr);
     list.slice(0, 2).forEach((e, j) => {
       const c = document.createElement('span');
-      c.className = 'chip';
+      c.className = 'chip' + (e.status ? ' ' + e.status : '');
       c.style.animationDelay = (j * 0.05) + 's';
       c.textContent = e.title;
       cell.appendChild(c);
@@ -524,12 +587,13 @@ function renderDay() {
   }
   list.forEach((e, i) => {
     const div = document.createElement('div');
-    div.className = 'entry';
+    div.className = 'entry' + (e.status === 'confirmed' ? ' st-confirmed' : '');
     div.style.animationDelay = (i * 0.06) + 's';
     const time = e.start_time ? e.start_time + (e.end_time ? '<br>〜' + e.end_time : '') : '終日';
+    const badge = e.status ? '<span class="badge ' + e.status + '">' + STATUS_LABEL[e.status] + '</span>' : '';
     div.innerHTML =
       '<span class="time">' + time + '</span>' +
-      '<span class="body"><span class="title">' + escapeHtml(e.title) + '</span>' +
+      '<span class="body"><span class="title">' + badge + escapeHtml(e.title) + '</span>' +
       (e.memo ? '<div class="memo">' + escapeHtml(e.memo) + '</div>' : '') + '</span>';
     div.onclick = () => openSheet(e);
     wrap.appendChild(div);
@@ -537,6 +601,14 @@ function renderDay() {
 }
 
 /* ==== 登録・編集シート ==== */
+function setSegStatus(v) {
+  fStatus = v;
+  document.querySelectorAll('#segStatus .segbtn').forEach((b) => {
+    b.classList.toggle('on', b.dataset.v === v);
+  });
+  $('segHint').textContent = STATUS_HINT[v] || '';
+}
+
 function openSheet(entry) {
   editingEntry = entry || null;
   $('sheetTitle').innerHTML = '<span class="teadot"></span>' + (entry ? '予定を編集' : '予定を登録');
@@ -546,7 +618,11 @@ function openSheet(entry) {
   $('fEnd').value = (entry && entry.end_time) || '';
   $('fMemo').value = (entry && entry.memo) || '';
   $('sheetErr').textContent = '';
+  setSegStatus((entry && entry.status) || '');
+  // 応募中の予定のみ、確定／取消のクイック操作を表示
+  $('applyBar').classList.toggle('hidden', !(entry && entry.status === 'applying'));
   $('btnDelete').classList.toggle('hidden', !entry);
+  $('btnDelete').textContent = entry && entry.status === 'applying' ? '応募を取消' : '削除';
   const ov = $('overlay');
   ov.classList.remove('closing');
   ov.classList.remove('hidden');
@@ -582,6 +658,7 @@ async function saveEntry() {
   const start = $('fStart').value || null;
   const input = {
     date, title,
+    status: fStatus || null,
     start_time: start,
     end_time: start ? ($('fEnd').value || null) : null,
     memo: $('fMemo').value.trim() || null,
@@ -606,14 +683,29 @@ async function saveEntry() {
 
 async function deleteEntry() {
   if (!editingEntry) return;
-  if (!confirm('「' + editingEntry.title + '」を削除しますか？')) return;
+  const applying = editingEntry.status === 'applying';
+  const msg = applying ? '「' + editingEntry.title + '」の応募を取消しますか？' : '「' + editingEntry.title + '」を削除しますか？';
+  if (!confirm(msg)) return;
   try {
     await apiFetch('DELETE', '/calendar-entries/' + editingEntry.id);
     closeSheet();
-    showToast('削除しました');
+    showToast(applying ? '応募を取消しました' : '削除しました');
     loadMonth();
   } catch (e) {
     $('sheetErr').textContent = e.message || '削除に失敗しました。';
+  }
+}
+
+/** 応募中の予定を出店確定に（ステータスのみ更新）。 */
+async function confirmApplication() {
+  if (!editingEntry) return;
+  try {
+    await apiFetch('PATCH', '/calendar-entries/' + editingEntry.id, { status: 'confirmed' });
+    closeSheet();
+    showToast('出店確定にしました');
+    loadMonth();
+  } catch (e) {
+    $('sheetErr').textContent = e.message || '更新に失敗しました。';
   }
 }
 
@@ -630,6 +722,11 @@ $('btnAdd').onclick = () => openSheet(null);
 $('btnCancel').onclick = closeSheet;
 $('btnSave').onclick = saveEntry;
 $('btnDelete').onclick = deleteEntry;
+$('btnConfirmApply').onclick = confirmApplication;
+$('btnCancelApply').onclick = deleteEntry;
+document.querySelectorAll('#segStatus .segbtn').forEach((b) => {
+  b.onclick = () => setSegStatus(b.dataset.v);
+});
 $('overlay').onclick = (e) => { if (e.target === $('overlay')) closeSheet(); };
 $('btnLogout').onclick = async () => {
   try { await apiFetch('POST', '/auth/logout'); } catch (_) {}

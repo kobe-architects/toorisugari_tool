@@ -59,6 +59,7 @@ class CalendarEntryController extends Controller
         return $request->validate([
             'date' => [$required, 'date'],
             'title' => [$required, 'string', 'max:120'],
+            'status' => ['nullable', 'in:applying,confirmed'], // null=通常 / 出店応募中 / 出店確定
             'start_time' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
             'end_time' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
             'memo' => ['nullable', 'string', 'max:500'],
@@ -71,6 +72,7 @@ class CalendarEntryController extends Controller
             'id' => $e->id,
             'date' => $e->date->toDateString(),
             'title' => $e->title,
+            'status' => $e->status,
             'start_time' => $e->start_time,
             'end_time' => $e->end_time,
             'memo' => $e->memo,

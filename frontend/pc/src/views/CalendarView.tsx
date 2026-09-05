@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@shared/api';
-import type { CalendarEntryDTO } from '@shared/types';
+import type { CalendarEntryDTO, CalendarEntryStatus } from '@shared/types';
 import { Panel } from '../components/Panel';
 
 const WEEK = ['日', '月', '火', '水', '木', '金', '土'];
@@ -12,6 +12,17 @@ const ymd = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.
 function fmtTime(e: CalendarEntryDTO): string {
   if (!e.start_time) return '';
   return e.end_time ? `${e.start_time}〜${e.end_time}` : e.start_time;
+}
+
+/** ステータス別のチップ配色。 */
+const STATUS_STYLE: Record<string, { bg: string; fg: string; label: string }> = {
+  applying: { bg: '#C08A3E', fg: '#FFF8EA', label: '応募中' },
+  confirmed: { bg: '#7A7264', fg: '#F4F1EA', label: '出店確定' },
+};
+
+function chipColors(status: CalendarEntryStatus): { bg: string; fg: string } {
+  if (status && STATUS_STYLE[status]) return STATUS_STYLE[status];
+  return { bg: 'var(--bar)', fg: 'var(--bar-ink)' };
 }
 
 export function CalendarView() {
@@ -84,6 +95,19 @@ export function CalendarView() {
       >
         {error && <div style={{ color: 'var(--accent)', fontSize: 13, marginBottom: 10 }}>{error}</div>}
 
+        {/* 凡例 */}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 10, fontSize: 11.5, fontWeight: 700, color: 'var(--ink-soft)' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: 'var(--bar)' }} />通常の予定
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: '#C08A3E' }} />出店応募中
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: '#7A7264' }} />出店確定（日付マスがグレーになります）
+          </span>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', borderLeft: '1px solid var(--line)', borderTop: '1px solid var(--line)' }}>
           {WEEK.map((w, i) => (
             <div key={w} style={{ padding: '7px 0', textAlign: 'center', fontSize: 11.5, fontWeight: 800, letterSpacing: '0.15em', color: i === 0 ? 'var(--accent)' : i === 6 ? '#3E5C76' : 'var(--ink-mute)', borderRight: '1px solid var(--line)', borderBottom: '1px solid var(--line)', background: 'var(--card-2)' }}>
@@ -93,29 +117,34 @@ export function CalendarView() {
           {cells.map((c) => {
             const list = byDate.get(c.date) ?? [];
             const isToday = c.date === today;
+            const isConfirmed = list.some((e) => e.status === 'confirmed'); // 出店確定日はグレーアウト
             return (
               <div
                 key={c.date}
                 onClick={() => setEditing({ date: c.date })}
-                style={{ minHeight: 96, padding: '6px 6px 8px', borderRight: '1px solid var(--line)', borderBottom: '1px solid var(--line)', cursor: 'pointer', background: c.inMonth ? 'transparent' : 'rgba(58,43,30,0.045)', opacity: c.inMonth ? 1 : 0.55 }}
+                style={{ minHeight: 96, padding: '6px 6px 8px', borderRight: '1px solid var(--line)', borderBottom: '1px solid var(--line)', cursor: 'pointer', background: isConfirmed ? 'rgba(90,82,68,0.18)' : c.inMonth ? 'transparent' : 'rgba(58,43,30,0.045)', opacity: c.inMonth ? 1 : 0.55 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', fontSize: 12.5, fontWeight: 800, background: isToday ? 'var(--accent)' : 'transparent', color: isToday ? '#fff' : c.dow === 0 ? 'var(--accent)' : c.dow === 6 ? '#3E5C76' : 'var(--ink-soft)' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', fontSize: 12.5, fontWeight: 800, background: isToday ? 'var(--accent)' : 'transparent', color: isToday ? '#fff' : isConfirmed ? 'var(--ink-mute)' : c.dow === 0 ? 'var(--accent)' : c.dow === 6 ? '#3E5C76' : 'var(--ink-soft)' }}>
                     {c.day}
                   </span>
+                  {isConfirmed && <span style={{ fontSize: 10, fontWeight: 800, color: '#7A7264', letterSpacing: '0.06em' }}>出店確定</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
-                  {list.map((e) => (
-                    <div
-                      key={e.id}
-                      onClick={(ev) => { ev.stopPropagation(); setEditing(e); }}
-                      title={`${e.title}${fmtTime(e) ? ` ${fmtTime(e)}` : ''}${e.memo ? `\n${e.memo}` : ''}`}
-                      style={{ padding: '3px 7px', borderRadius: 6, background: 'var(--bar)', color: 'var(--bar-ink)', fontSize: 11.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                    >
-                      {fmtTime(e) && <span style={{ opacity: 0.75, marginRight: 4, fontSize: 10.5 }}>{e.start_time}</span>}
-                      {e.title}
-                    </div>
-                  ))}
+                  {list.map((e) => {
+                    const col = chipColors(e.status);
+                    return (
+                      <div
+                        key={e.id}
+                        onClick={(ev) => { ev.stopPropagation(); setEditing(e); }}
+                        title={`${e.status && STATUS_STYLE[e.status] ? `【${STATUS_STYLE[e.status].label}】` : ''}${e.title}${fmtTime(e) ? ` ${fmtTime(e)}` : ''}${e.memo ? `\n${e.memo}` : ''}`}
+                        style={{ padding: '3px 7px', borderRadius: 6, background: col.bg, color: col.fg, fontSize: 11.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', border: e.status === 'applying' ? '1px dashed rgba(255,248,234,0.7)' : 'none' }}
+                      >
+                        {fmtTime(e) && <span style={{ opacity: 0.75, marginRight: 4, fontSize: 10.5 }}>{e.start_time}</span>}
+                        {e.title}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -139,6 +168,7 @@ export function CalendarView() {
 function EntryEditorModal({ entry, defaultDate, onClose, onSaved }: { entry: CalendarEntryDTO | null; defaultDate: string; onClose: () => void; onSaved: () => void }) {
   const [date, setDate] = useState(entry?.date ?? defaultDate);
   const [title, setTitle] = useState(entry?.title ?? '');
+  const [status, setStatus] = useState<CalendarEntryStatus>(entry?.status ?? null);
   const [start, setStart] = useState(entry?.start_time ?? '');
   const [end, setEnd] = useState(entry?.end_time ?? '');
   const [memo, setMemo] = useState(entry?.memo ?? '');
@@ -155,6 +185,7 @@ function EntryEditorModal({ entry, defaultDate, onClose, onSaved }: { entry: Cal
       const input = {
         date,
         title: title.trim(),
+        status,
         start_time: start || null,
         end_time: start && end ? end : null, // 開始なしで終了のみは保存しない
         memo: memo.trim() || null,
@@ -168,9 +199,24 @@ function EntryEditorModal({ entry, defaultDate, onClose, onSaved }: { entry: Cal
     }
   };
 
+  /** 応募中の予定を出店確定に（他の項目は触らずステータスのみ更新）。 */
+  const confirmApplication = async () => {
+    if (!entry || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api.calendar.update(entry.id, { status: 'confirmed' });
+      onSaved();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '更新に失敗しました');
+      setBusy(false);
+    }
+  };
+
   const remove = async () => {
     if (!entry || busy) return;
-    if (!confirm(`「${entry.title}」を削除しますか？`)) return;
+    const label = entry.status === 'applying' ? `「${entry.title}」の応募を取消しますか？` : `「${entry.title}」を削除しますか？`;
+    if (!confirm(label)) return;
     setBusy(true);
     try {
       await api.calendar.remove(entry.id);
@@ -197,6 +243,37 @@ function EntryEditorModal({ entry, defaultDate, onClose, onSaved }: { entry: Cal
           <div className="field-label">予定名 <span className="req">必須</span></div>
           <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例：◯◯マルシェ出店 ／ 茶葉の仕入れ" />
         </div>
+        <div className="field">
+          <div className="field-label">種別</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {([
+              { v: null, label: '通常の予定', on: 'var(--bar)' },
+              { v: 'applying', label: '出店応募中', on: '#C08A3E' },
+              { v: 'confirmed', label: '出店確定', on: '#7A7264' },
+            ] as { v: CalendarEntryStatus; label: string; on: string }[]).map((o) => {
+              const active = status === o.v;
+              return (
+                <button
+                  key={o.label}
+                  onClick={() => setStatus(o.v)}
+                  style={{ flex: 1, padding: '9px 4px', borderRadius: 9, fontSize: 12.5, fontWeight: 800, cursor: 'pointer', border: active ? 'none' : '1.5px solid var(--line-2)', background: active ? o.on : 'transparent', color: active ? '#FFF8EA' : 'var(--ink-soft)' }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          {status === 'confirmed' && <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 5 }}>出店確定にすると、カレンダー上でこの日付がグレーアウトします。</div>}
+        </div>
+
+        {/* 応募中の予定は、確定 or 取消 のクイック操作を表示 */}
+        {entry?.status === 'applying' && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: 'rgba(192,138,62,0.14)', border: '1px dashed #C08A3E', marginBottom: 14 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#8A6227', flex: 1 }}>この予定は出店応募中です</span>
+            <button className="btn btn-accent" style={{ padding: '8px 14px', fontSize: 12.5, cursor: 'pointer' }} onClick={confirmApplication} disabled={busy}>出店確定にする</button>
+            <button className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 12.5, cursor: 'pointer', color: 'var(--accent)' }} onClick={remove} disabled={busy}>応募を取消</button>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 12 }}>
           <div className="field" style={{ flex: 1 }}>
             <div className="field-label">開始時刻（任意）</div>
@@ -217,7 +294,7 @@ function EntryEditorModal({ entry, defaultDate, onClose, onSaved }: { entry: Cal
         <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
           {entry && (
             <button className="btn btn-ghost" style={{ padding: '10px 16px', fontSize: 13.5, cursor: 'pointer', color: 'var(--accent)' }} onClick={remove} disabled={busy}>
-              削除
+              {entry.status === 'applying' ? '応募を取消' : '削除'}
             </button>
           )}
           <button className="btn btn-accent" style={{ marginLeft: 'auto', padding: '10px 22px', fontSize: 14, cursor: valid ? 'pointer' : 'default', opacity: valid ? 1 : 0.5 }} onClick={save} disabled={!valid || busy}>
